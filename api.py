@@ -1,12 +1,13 @@
 import json
 import os
+import threading
 from datetime import datetime
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 from typing import Annotated, Literal, Optional, List
 from fastapi.responses import JSONResponse
 
-
+lock = threading.Lock()
 FILE_PATH = "tasks.json"
 
 if not os.path.exists(FILE_PATH):
@@ -15,7 +16,7 @@ if not os.path.exists(FILE_PATH):
         
         
 def load_data():
-    with open("tasks.json", "r") as f:
+    with lock, open("tasks.json", "r") as f:
         data = json.load(f)
     return data
 
@@ -24,7 +25,7 @@ def save_data(data):
         if isinstance(o, datetime):
             return o.isoformat()
         raise TypeError(f"Type {type(o)} not serializable")
-    with open("tasks.json", "w") as f:
+    with lock, open("tasks.json", "w") as f:
         json.dump(data, f, default=default, indent=2)
 
 class Task(BaseModel):
@@ -34,7 +35,7 @@ class Task(BaseModel):
     deadline: Annotated[Optional[datetime], Field(
         None, description="Deadline by which the task should be completed (optional)"
     )]
-    priority: Annotated[int, Field(default=3, description="Priority of the Task (1=High, 2=Medium, 3=Low)")]
+    priority: Annotated[int, Field(default=3, ge=1, le=3, description="Priority of the Task (1=High, 2=Medium, 3=Low)")]
     status: Annotated[Literal["Complete", "Incomplete"], Field(default="Incomplete", description="Current Status of the Task")]
     created_at: Annotated[datetime, Field(default_factory=datetime.now, description="ISO time when the task was created")]
     updated_at: Annotated[datetime, Field(default_factory=datetime.now, description="ISO time when the task was last updated")]
@@ -45,14 +46,14 @@ class TaskCreate(BaseModel):
     deadline: Annotated[Optional[datetime], Field(
         None, description="Deadline by which the task should be completed (optional)"
     )]
-    priority: Annotated[int, Field(default=3, description="Priority of the Task (1=High, 2=Medium, 3=Low)")]
+    priority: Annotated[int, Field(default=3, ge=1, le=3, description="Priority of the Task (1=High, 2=Medium, 3=Low)")]
 
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     deadline: Optional[datetime] = None
-    priority: Optional[int] = None
+    priority: Optional[Annotated[int, Field(ge=1, le=3)]] = None
     status: Optional[Literal["Complete", "Incomplete"]] = None
     updated_at: datetime = Field(default_factory=datetime.now)
 
@@ -91,7 +92,7 @@ def update_task(tid: int, task: TaskUpdate):
                 updated_task[field] = value
 
          
-            updated_task["updated_at"] = datetime.now().isoformat()
+            updated_task["updated_at"] = datetime.now().now()
 
             data[idx] = updated_task
             save_data(data)
@@ -104,10 +105,8 @@ def update_task(tid: int, task: TaskUpdate):
 @app.get("/tasks", response_model=List[Task])
 def get_tasks(
     status: Optional[str] = Query(None, description="Status: 'Complete' or 'Incomplete'"),
-    priority: Optional[str] = Query(
-        None,
-        description="Sort order: 'asc' or 'desc' OR filter by priority value ('1', '2', '3').",
-    ),
+    sort: Optional[Literal["asc", "desc"]] = Query(None, description="Sort by priority"),
+    priority: Optional[int] = Query(None, ge=1, le=3, description="Filter by priority 1=High, 2=Medium, 3=Low")
 ):
     data = load_data()
 
@@ -115,17 +114,14 @@ def get_tasks(
     if status in ["Complete", "Incomplete"]:
         data = [task for task in data if task["status"] == status]
 
-    
-    if priority:
-        if priority in ["asc", "desc"]:  # sorting
-            reverse_sort = priority == "desc"
-            data = sorted(data, key=lambda x: x["priority"], reverse=reverse_sort)
-        elif priority in ["1", "2", "3"]:  # filtering by exact priority
-            data = [task for task in data if str(task["priority"]) == priority]
+    if sort:
+        reverse_sort = sort == "desc"
+        data = sorted(data, key=lambda x: x["priority"], reverse=reverse_sort)
+
+    if priority is not None:
+        data = [task for task in data if task["priority"] == priority]
 
     return [Task(**task) for task in data]
-    # else:
-    #     JSONResponse(status_code=200, content={"message": "No Task Found"})
 
 
 @app.get("/tasks/{tid}", response_model=Task)
@@ -145,4 +141,4 @@ def del_task(tid: int):
         raise HTTPException(status_code=404, detail="Task not Found")
 
     save_data(new_data)
-    return JSONResponse(status_code=200, content={"message": "Task deleted"})
+    return {"message": "Task deleted"}   
