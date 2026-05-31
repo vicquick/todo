@@ -95,7 +95,10 @@ async def update_item_state(list_id: PydanticObjectId, update: ListItemUpdatePar
             if update.checked != None:
                 item.checked = update.checked
                 await todolist.save()
-                return await TodoList.get(list_id)
+            if update.label != None:
+                item.label = update.label
+                await todolist.save()
+            return await TodoList.get(list_id)
 
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="item not found")
 

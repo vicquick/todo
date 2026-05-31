@@ -18,6 +18,6 @@ ENV MONGO_DB=
 
 COPY . .
 
-CMD ["fastapi", "run", "main.py", "--port", "80"]
+CMD ["fastapi", "run", "app/main.py", "--port", "80"]
 
 EXPOSE 80

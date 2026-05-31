@@ -38,15 +38,14 @@ class ListItemBase(BaseModel):
     checked: bool = Field(default=False)
 
 
-class ListItemCreate(BaseModel):
-    label: str = Field(min_length=1, max_length=50)
-    checked: bool = Field(default=False)
+class ListItemCreate(ListItemBase):
+    pass
 
 
 class ListItemUpdatePartial(BaseModel):
     item_id: str
     checked: bool | None = Field(default=None)
-    # label: str | None = Field(default=None, min_length=1, max_length=50)
+    label: str | None = Field(default=None, min_length=1, max_length=50)
 
 
 class ListItemResponse(ListItemBase):
