@@ -1,4 +1,5 @@
-import { Sun, Moon, Wifi, WifiOff, Sparkles } from "lucide-react";
+import { Sun, Moon } from "lucide-react";
+// import { Sun, Moon, Wifi, WifiOff, Sparkles } from "lucide-react";
 import { Button } from "../ui/button";
 // import {
 //   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -21,7 +22,8 @@ type Props = {
   onDemo: (s: DemoState) => void;
 };
 
-export function TopBar({ dark, onToggleDark, demo, onDemo }: Props) {
+export function TopBar({ dark, onToggleDark }: Props) {
+  // export function TopBar({ dark, onToggleDark, demo, onDemo }: Props) {
   // const online = demo !== "offline" && demo !== "error";
   return (
     <header

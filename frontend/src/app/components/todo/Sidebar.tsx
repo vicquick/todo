@@ -1,6 +1,6 @@
 import { Plus, Trash2, ListChecks, Loader2, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { Logo } from "./Logo";
+// import { Logo } from "./Logo";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { useState } from "react";

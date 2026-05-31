@@ -1,9 +1,15 @@
 services:
-  todo-api-backend:
+  todo-backend:
     container_name: todo-backend
-    image: todo-backend:1
+    image: todo-backend:latest
     ports:
       - 8888:80
     env_file:
       - backend/.env
-    
+  todo-frontend:
+    container_name: todo-frontend
+    image: todo-frontend:latest
+    ports:
+      - 5173:80
+    env_file:
+      - frontend/.env
