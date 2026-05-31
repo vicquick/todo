@@ -68,9 +68,7 @@ async def create_list_item(list_id: PydanticObjectId, item_data: ListItemCreate)
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="todo list not found"
         )
-    new_item = ListItemBase(label=item_data.label, checked=item_data.checked)
-    todolist.items.append(new_item)
-    await todolist.save()
+    await todolist.update({"$push": {"items": item_data.model_dump()}})
     return await TodoList.get(list_id)
 
 
@@ -108,6 +106,7 @@ async def delete_item(list_id: PydanticObjectId, item_id: str):
             todolist.items.remove(item)
             item_deleted = True
             await todolist.save()
+            break
     if not item_deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="item not found"
