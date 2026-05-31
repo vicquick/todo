@@ -10,12 +10,12 @@ class ListBase(BaseModel):
 
 class ListResponse(ListBase):
     id: PydanticObjectId
-    items: list[ListItemResponse]
+    items: list[ItemResponse]
 
 
 class ListDetailedResponse(ListBase):
     id: PydanticObjectId
-    items: list[ListItemResponse]
+    items: list[ItemResponse]
 
 
 class ListCreate(ListBase):
@@ -32,21 +32,21 @@ class ListSummary(BaseModel):
     item_count: int = Field()
 
 
-class ListItemBase(BaseModel):
+class ItemBase(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     label: str = Field(min_length=1, max_length=50)
     checked: bool = Field(default=False)
 
 
-class ListItemCreate(ListItemBase):
+class ItemCreate(ItemBase):
     pass
 
 
-class ListItemUpdatePartial(BaseModel):
+class ItemUpdatePartial(BaseModel):
     item_id: str
     checked: bool | None = Field(default=None)
     label: str | None = Field(default=None, min_length=1, max_length=50)
 
 
-class ListItemResponse(ListItemBase):
+class ItemResponse(ItemBase):
     pass
