@@ -1,14 +1,22 @@
-# Todo App
+# TodoList
 
-A simple personal todo list manager built with the FARM stack.
+A simple self-hosted application for managing tasks through workspaces, lists, and items.
 
-## Features
 
-- Create todo lists
-- Delete todo lists
-- Add items to a list
-- Mark items as completed
-- Delete items
-- Persistent storage with MongoDB
+## Current Features
+
+* User authentication and account management.
+* Workspace-based organization.
+* List and item management with priorities, descriptions, tags, and completion tracking.
+
+## Planned Features
+
+* Bulk item actions.
+* Email reminders.
+* AI-assisted task creation.
+* AI chat integration.
+* MCP server support.
+* LLM integrations.
+* Additional productivity and organization features.
 
 ## Current State: Development
