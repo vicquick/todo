@@ -7,10 +7,10 @@ from fastapi.security import OAuth2PasswordBearer
 from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from app.models import User
-from app.schemas.user import UserResponse
+from app.schemas.user import UserPrivateResponse
 
 password_hash = PasswordHash.recommended()
-oauth2_scheme = OAuth2PasswordBearer("/api/user/token")
+oauth2_scheme = OAuth2PasswordBearer("/api/auth/token")
 
 
 def hash_password(password: str) -> str:
@@ -70,4 +70,4 @@ async def get_current_user(
     return user
 
 
-currentUser = Annotated[UserResponse, Depends(get_current_user)]
+currentUser = Annotated[UserPrivateResponse, Depends(get_current_user)]

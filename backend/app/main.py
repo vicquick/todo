@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import init_db, close_db
-from app.routes import system, list, user
+from app.routes import system, list, user, auth, workspace
 
 
 @asynccontextmanager
@@ -16,7 +16,7 @@ async def lifespan(app_: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-origins = ["http://localhost:5173", "http://localhost:5174"]
+origins = ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5500"]
 
 app.add_middleware(
     middleware_class=CORSMiddleware,
@@ -27,5 +27,9 @@ app.add_middleware(
 
 
 app.include_router(router=system.router, prefix="", tags=["system"])
+app.include_router(router=auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(router=user.router, prefix="/api/user", tags=["user"])
-app.include_router(router=list.router, prefix="/api/lists", tags=["todo list"])
+app.include_router(
+    router=workspace.router, prefix="/api/workspaces", tags=["workspace"]
+)
+app.include_router(router=list.router, prefix="/api", tags=["todo list"])

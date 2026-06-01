@@ -1,3 +1,10 @@
-.venv
+
 .env
 **/__pycache__/*
+
+test_ui.html
+report.html
+test_docs.md
+pytest.ini
+tests
+.vscode
