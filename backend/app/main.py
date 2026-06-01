@@ -16,7 +16,12 @@ async def lifespan(app_: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-origins = ["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5500"]
+origins = [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5500",
+    "https://todo-lac-six-80.vercel.app",
+]
 
 app.add_middleware(
     middleware_class=CORSMiddleware,
