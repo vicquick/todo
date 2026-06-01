@@ -1,18 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { TopBar } from "./components/todo/TopBar";
-import type { DemoState } from "./components/todo/TopBar";
-import { Sidebar } from "./components/todo/Sidebar";
-import type { TodoList } from "./components/todo/Sidebar";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BrowserRouter, Routes, Route, useNavigate } from "react-router";
 import { Toaster } from "./components/ui/sonner";
 import { toast } from "sonner";
-import { MainPanel } from "./components/todo/MainPanel";
-import type { TodoItem } from "./components/todo/MainPanel";
-import {
-  NoListsEmpty,
-  NoSelection,
-  ErrorPanel,
-} from "./components/todo/States";
-import * as api from "./api/client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,72 +12,190 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
+import { Sidebar, TodoList } from "./components/todo/Sidebar";
+import { MainPanel, TodoItem, ItemPatch } from "./components/todo/MainPanel";
+import { TopBar } from "./components/todo/TopBar";
+import { NotFound } from "./components/todo/NotFound";
+import {
+  NoListsEmpty,
+  NoSelection,
+  ErrorPanel,
+} from "./components/todo/States";
+import { LoginPage } from "./components/auth/LoginPage";
+import { SignupPage } from "./components/auth/SignupPage";
+import { ForgotPasswordPage } from "./components/auth/ForgotPasswordPage";
+import {
+  ProtectedRoute,
+  PublicOnlyRoute,
+} from "./components/auth/ProtectedRoute";
+import { SettingsPage } from "./components/settings/SettingsPage";
+import { AuthProvider, useAuth } from "./auth/AuthContext";
+import { AppDataProvider, useAppData } from "./state/AppDataContext";
+import { AIProvider } from "./state/AIContext";
+import { AIHistoryPage } from "./components/ai/AIHistoryPage";
+import { MCPExplorerPage } from "./components/ai/MCPExplorerPage";
+import { FloatingChat } from "./components/ai/FloatingChat";
+import { Button } from "./components/ui/button";
+import { FolderPlus, Loader2 } from "lucide-react";
+import { Priority } from "./api/mock";
+import * as api from "./api/client";
 
-const demoEmptyList: TodoList = {
-  id: "demo_empty",
-  name: "Reading queue",
-  itemCount: 0,
-  completedCount: 0,
-  accent: "blue",
-};
-
-function App() {
-  // ------
-  // Navbar
-  // ------
+export default function App() {
   const [dark, setDark] = useState(false);
-  const [demo, setDemo] = useState<DemoState>("ready");
+
   useEffect(() => {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
 
-  // ------
-  // Sidebar
-  // ------
+  const healthChecked = useRef(false);
+  useEffect(() => {
+    if (healthChecked.current) return;
+    healthChecked.current = true;
+    api.checkHealth().then((ok) => {
+      if (!ok)
+        toast("Backend looks unreachable", {
+          description: "Some actions may fail until it comes back.",
+        });
+    });
+  }, []);
 
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppDataProvider>
+          <AIProvider>
+            <Routes>
+              <Route
+                path="/login"
+                element={
+                  <PublicOnlyRoute>
+                    <LoginPage />
+                  </PublicOnlyRoute>
+                }
+              />
+              <Route
+                path="/signup"
+                element={
+                  <PublicOnlyRoute>
+                    <SignupPage />
+                  </PublicOnlyRoute>
+                }
+              />
+              <Route
+                path="/forgot-password"
+                element={
+                  <PublicOnlyRoute>
+                    <ForgotPasswordPage />
+                  </PublicOnlyRoute>
+                }
+              />
+
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <SettingsPage
+                      dark={dark}
+                      onToggleDark={() => setDark((d) => !d)}
+                    />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/ai/history"
+                element={
+                  <ProtectedRoute>
+                    <AIHistoryPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/mcp"
+                element={
+                  <ProtectedRoute>
+                    <MCPExplorerPage />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route
+                path="/"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard
+                      dark={dark}
+                      onToggleDark={() => setDark((d) => !d)}
+                    />
+                  </ProtectedRoute>
+                }
+              />
+
+              <Route path="*" element={<NotFoundRoute />} />
+            </Routes>
+            <Toaster richColors position="bottom-right" />
+          </AIProvider>
+        </AppDataProvider>
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
+
+function NotFoundRoute() {
+  const navigate = useNavigate();
+  return (
+    <div className="min-h-screen flex flex-col">
+      <NotFound onBack={() => navigate("/")} />
+    </div>
+  );
+}
+
+function Dashboard({
+  dark,
+  onToggleDark,
+}: {
+  dark: boolean;
+  onToggleDark: () => void;
+}) {
+  const { logout } = useAuth();
+  const {
+    ready,
+    workspaces,
+    activeWorkspaceId,
+    createWorkspace,
+    tags,
+    createTag,
+  } = useAppData();
+  const navigate = useNavigate();
+
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [lists, setLists] = useState<TodoList[]>([]);
-  const [initialLoading, setInitialLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [itemsByList, setItemsByList] = useState<Record<string, TodoItem[]>>(
     {},
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [creatingList, setCreatingList] = useState(false);
-  const [addingItem, setAddingItem] = useState(false);
 
   const [pendingDelete, setPendingDelete] = useState<{
     id: string;
     name: string;
   } | null>(null);
-  const showLoading =
-    demo === "loading" || (demo === "ready" && initialLoading);
-  const showError = demo === "error" || (demo === "ready" && !!loadError);
-  const showOffline = demo === "offline";
+  const [creatingList, setCreatingList] = useState(false);
+  const [addingItem, setAddingItem] = useState(false);
+  const [creatingDefaultWs, setCreatingDefaultWs] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  const loadAll = async () => {
+  const wsId = activeWorkspaceId;
+
+  const loadLists = async (workspaceId: string) => {
     setInitialLoading(true);
     setLoadError(null);
     try {
-      const { lists, itemsByList } = await api.fetchLists();
+      const { lists, itemsByList } = await api.fetchLists(workspaceId);
       setLists(lists);
       setItemsByList(itemsByList);
-      // compute selected id synchronously so we can fetch its items immediately
-      const selected = (() =>
-        (selectedId && lists.some((l) => l.id === selectedId) && selectedId) ||
-        (lists[0]?.id ?? null))();
-      setSelectedId(selected);
-      // if we have a selected list, load its full data (items) on initial load
-      if (selected) {
-        try {
-          const { list, items } = await api.fetchList(selected);
-          setItemsByList((m) => ({ ...m, [list.id]: items }));
-          setLists((ls) => ls.map((l) => (l.id === list.id ? list : l)));
-        } catch (e: any) {
-          // don't treat failure to fetch a single list as fatal for the whole loadAll
-          console.warn("Failed to fetch selected list items:", e?.message ?? e);
-        }
-      }
     } catch (e: any) {
+      if (e?.status === 401) return;
       setLoadError(e?.message ?? "Failed to load lists");
     } finally {
       setInitialLoading(false);
@@ -96,24 +203,37 @@ function App() {
   };
 
   useEffect(() => {
-    loadAll(); /* eslint-disable-next-line */
-  }, []);
-
-  // Demo overrides — visualize states without touching the API
-  useEffect(() => {
-    if (demo === "empty-lists") {
+    if (!ready) return;
+    if (!wsId) {
       setLists([]);
+      setItemsByList({});
       setSelectedId(null);
-    } else if (demo === "empty-items") {
-      setLists([demoEmptyList]);
-      setItemsByList({ [demoEmptyList.id]: [] });
-      setSelectedId(demoEmptyList.id);
-    } else if (demo === "ready") {
-      loadAll();
+      setInitialLoading(false);
+      return;
     }
-    // loading / error / offline / not-found are pure render overrides
+    loadLists(wsId);
     // eslint-disable-next-line
-  }, [demo]);
+  }, [ready, wsId]);
+
+  useEffect(() => {
+    if (!lists.length) {
+      if (selectedId !== null) setSelectedId(null);
+      return;
+    }
+    if (!selectedId || !lists.some((l) => l.id === selectedId)) {
+      const firstId = lists[0].id;
+      setSelectedId(firstId);
+      if (wsId) {
+        api
+          .fetchListDetails(wsId, firstId)
+          .then(({ list, items }) => {
+            setLists((ls) => ls.map((l) => (l.id === list.id ? list : l)));
+            setItemsByList((m) => ({ ...m, [list.id]: items }));
+          })
+          .catch(() => {});
+      }
+    }
+  }, [lists, selectedId, wsId]);
 
   const selectedList = lists.find((l) => l.id === selectedId) ?? null;
   const items = useMemo(
@@ -121,20 +241,43 @@ function App() {
     [selectedId, itemsByList],
   );
 
+  const onCreateDefaultWorkspace = async () => {
+    setCreatingDefaultWs(true);
+    try {
+      await createWorkspace("Default Workspace");
+      toast.success("Workspace created");
+    } catch (e: any) {
+      toast.error("Couldn't create workspace", { description: e?.message });
+    } finally {
+      setCreatingDefaultWs(false);
+    }
+  };
+
   const onCreateList = async (name: string) => {
+    if (!wsId) return;
     setCreatingList(true);
     try {
-      const { list, items } = await api.createList(name);
+      const { list, items } = await api.createList(wsId, name);
       setLists((ls) => [list, ...ls]);
       setItemsByList((m) => ({ ...m, [list.id]: items }));
       setSelectedId(list.id);
-      toast.success(`Created "${name}"`, {
-        description: "Ready to add tasks.",
-      });
+      toast.success(`Created "${name}"`);
     } catch (e: any) {
       toast.error("Couldn't create list", { description: e?.message });
     } finally {
       setCreatingList(false);
+    }
+  };
+
+  const onRenameList = async (id: string, name: string) => {
+    if (!wsId) return;
+    try {
+      const { list, items } = await api.renameList(wsId, id, name);
+      setLists((ls) => ls.map((l) => (l.id === list.id ? list : l)));
+      setItemsByList((m) => ({ ...m, [list.id]: items }));
+      toast.success("List renamed");
+    } catch (e: any) {
+      toast.error("Couldn't rename list", { description: e?.message });
     }
   };
 
@@ -145,11 +288,11 @@ function App() {
   };
 
   const confirmDelete = async () => {
-    if (!pendingDelete) return;
+    if (!pendingDelete || !wsId) return;
     const { id, name } = pendingDelete;
     setPendingDelete(null);
     try {
-      await api.deleteList(id);
+      await api.deleteList(wsId, id);
       setLists((ls) => ls.filter((l) => l.id !== id));
       setItemsByList((m) => {
         const n = { ...m };
@@ -158,18 +301,37 @@ function App() {
       });
       if (selectedId === id) {
         const remaining = lists.filter((l) => l.id !== id);
-        setSelectedId(remaining[0]?.id ?? null);
+        const nextId = remaining[0]?.id ?? null;
+        setSelectedId(nextId);
+        if (wsId && nextId) {
+          api
+            .fetchListDetails(wsId, nextId)
+            .then(({ list, items }) => {
+              setLists((ls) => ls.map((l) => (l.id === list.id ? list : l)));
+              setItemsByList((m) => ({ ...m, [list.id]: items }));
+            })
+            .catch(() => {});
+        }
       }
       toast(`Deleted "${name}"`, { description: "List removed." });
     } catch (e: any) {
       toast.error("Couldn't delete list", { description: e?.message });
     }
   };
-  const onAddItem = async (label: string) => {
-    if (!selectedId) return;
+
+  const onAddItem = async (
+    label: string,
+    opts: { priority?: Priority; tags?: string[]; description?: string } = {},
+  ) => {
+    if (!selectedId || !wsId) return;
     setAddingItem(true);
     try {
-      const { list, items } = await api.createItem(selectedId, label);
+      const { list, items } = await api.createItem(wsId, selectedId, {
+        label,
+        priority: opts.priority ?? null,
+        tags: opts.tags,
+        description: opts.description ?? null,
+      });
       setItemsByList((m) => ({ ...m, [list.id]: items }));
       setLists((ls) => ls.map((l) => (l.id === list.id ? list : l)));
       toast.success("Task added");
@@ -181,11 +343,10 @@ function App() {
   };
 
   const onToggleItem = async (id: string) => {
-    if (!selectedId) return;
+    if (!selectedId || !wsId) return;
     const before = (itemsByList[selectedId] ?? []).find((i) => i.id === id);
     if (!before) return;
     const nextChecked = !before.checked;
-    // Optimistic-feel update kept identical to previous; refetched list replaces it
     setItemsByList((m) => ({
       ...m,
       [selectedId]: (m[selectedId] ?? []).map((it) =>
@@ -193,11 +354,13 @@ function App() {
       ),
     }));
     try {
-      const { list, items } = await api.toggleItem(selectedId, id, nextChecked);
+      const { list, items } = await api.patchItem(wsId, selectedId, {
+        item_id: id,
+        checked: nextChecked,
+      });
       setItemsByList((m) => ({ ...m, [list.id]: items }));
       setLists((ls) => ls.map((l) => (l.id === list.id ? list : l)));
     } catch (e: any) {
-      // revert
       setItemsByList((m) => ({
         ...m,
         [selectedId]: (m[selectedId] ?? []).map((it) =>
@@ -208,11 +371,26 @@ function App() {
     }
   };
 
+  const onRenameItem = async (id: string, label: string) => {
+    if (!selectedId || !wsId) return;
+    try {
+      const { list, items } = await api.patchItem(wsId, selectedId, {
+        item_id: id,
+        label,
+      });
+      setItemsByList((m) => ({ ...m, [list.id]: items }));
+      setLists((ls) => ls.map((l) => (l.id === list.id ? list : l)));
+      toast.success("Task renamed");
+    } catch (e: any) {
+      toast.error("Couldn't rename task", { description: e?.message });
+    }
+  };
+
   const onDeleteItem = async (id: string) => {
-    if (!selectedId) return;
+    if (!selectedId || !wsId) return;
     const it = (itemsByList[selectedId] ?? []).find((i) => i.id === id);
     try {
-      await api.deleteItem(selectedId, id);
+      await api.deleteItem(wsId, selectedId, id);
       setItemsByList((m) => ({
         ...m,
         [selectedId]: (m[selectedId] ?? []).filter((i) => i.id !== id),
@@ -236,84 +414,233 @@ function App() {
     }
   };
 
-  // populate itemsByList on-demand when a list is selected
-  const handleSelect = async (id: string | null) => {
-    setSelectedId(id);
-    if (!id) return;
-    // if we already have items cached for this list, skip refetch
-    if (itemsByList[id] && itemsByList[id].length > 0) return;
+  const onPatchItem = async (itemId: string, patch: ItemPatch) => {
+    if (!selectedId || !wsId) return;
     try {
-      const { list, items } = await api.fetchList(id);
+      const { list, items } = await api.patchItem(wsId, selectedId, {
+        item_id: itemId,
+        ...patch,
+      });
       setItemsByList((m) => ({ ...m, [list.id]: items }));
       setLists((ls) => ls.map((l) => (l.id === list.id ? list : l)));
     } catch (e: any) {
-      toast.error("Couldn't load list", { description: e?.message });
+      toast.error("Couldn't update task", { description: e?.message });
     }
   };
 
+  const onBulkSetChecked = async (ids: string[], checked: boolean) => {
+    if (!selectedId || !wsId || !ids.length) return;
+    const current = itemsByList[selectedId] ?? [];
+    const targets = current.filter(
+      (i) => ids.includes(i.id) && i.checked !== checked,
+    );
+    if (!targets.length) return;
+    setItemsByList((m) => ({
+      ...m,
+      [selectedId]: (m[selectedId] ?? []).map((it) =>
+        ids.includes(it.id) ? { ...it, checked } : it,
+      ),
+    }));
+    try {
+      let lastList: TodoList | null = null;
+      let lastItems: TodoItem[] | null = null;
+      for (const t of targets) {
+        const { list, items } = await api.patchItem(wsId, selectedId, {
+          item_id: t.id,
+          checked,
+        });
+        lastList = list;
+        lastItems = items;
+      }
+      if (lastList && lastItems) {
+        setItemsByList((m) => ({ ...m, [lastList!.id]: lastItems! }));
+        setLists((ls) =>
+          ls.map((l) => (l.id === lastList!.id ? lastList! : l)),
+        );
+      }
+      toast.success(
+        checked
+          ? `Marked ${targets.length} complete`
+          : `Marked ${targets.length} active`,
+      );
+    } catch (e: any) {
+      toast.error("Bulk update failed", { description: e?.message });
+      if (wsId) loadLists(wsId);
+    }
+  };
+
+  const onBulkDelete = async (ids: string[]) => {
+    if (!selectedId || !wsId || !ids.length) return;
+    try {
+      for (const id of ids) {
+        await api.deleteItem(wsId, selectedId, id);
+      }
+      setItemsByList((m) => ({
+        ...m,
+        [selectedId]: (m[selectedId] ?? []).filter((i) => !ids.includes(i.id)),
+      }));
+      const refreshed = await api.fetchLists(wsId);
+      setLists(refreshed.lists);
+      setItemsByList(refreshed.itemsByList);
+      toast.success(`Deleted ${ids.length} task${ids.length === 1 ? "" : "s"}`);
+    } catch (e: any) {
+      toast.error("Bulk delete failed", { description: e?.message });
+      if (wsId) loadLists(wsId);
+    }
+  };
+
+  const onCheckAll = () => {
+    if (!selectedId) return;
+    const ids = (itemsByList[selectedId] ?? [])
+      .filter((i) => !i.checked)
+      .map((i) => i.id);
+    onBulkSetChecked(ids, true);
+  };
+  const onUncheckAll = () => {
+    if (!selectedId) return;
+    const ids = (itemsByList[selectedId] ?? [])
+      .filter((i) => i.checked)
+      .map((i) => i.id);
+    onBulkSetChecked(ids, false);
+  };
+  const onDeleteCompleted = () => {
+    if (!selectedId) return;
+    const ids = (itemsByList[selectedId] ?? [])
+      .filter((i) => i.checked)
+      .map((i) => i.id);
+    if (!ids.length) {
+      toast("Nothing to clear", {
+        description: "No completed tasks in this list.",
+      });
+      return;
+    }
+    onBulkDelete(ids);
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login", { replace: true });
+  };
+
+  const handleSelectList = async (id: string) => {
+    setSelectedId(id);
+    setSidebarOpen(false);
+    if (!wsId) return;
+    try {
+      const { list, items } = await api.fetchListDetails(wsId, id);
+      setLists((ls) => ls.map((l) => (l.id === list.id ? list : l)));
+      setItemsByList((m) => ({ ...m, [list.id]: items }));
+    } catch (e: any) {
+      toast.error("Failed to fetch list items", { description: e?.message });
+    }
+  };
+
+  const showLoading = !ready || initialLoading;
+  const showError = !!loadError;
+  const showEmptyWorkspace = ready && workspaces.length === 0;
+
   return (
-    <div className="h-screen flex flex-col bg-background text-foreground">
+    <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
       <TopBar
         dark={dark}
-        onToggleDark={() => setDark((d) => !d)}
-        demo={demo}
-        onDemo={setDemo}
+        onToggleDark={onToggleDark}
+        onMenuToggle={() => setSidebarOpen((o) => !o)}
       />
 
-      <div className="flex-1 grid grid-cols-1 md:grid-cols-[300px_1fr] min-h-0">
-        <Sidebar
-          lists={lists}
-          selectedId={selectedId}
-          onSelect={handleSelect}
-          onDelete={requestDeleteList}
-          onCreate={onCreateList}
-          loading={showLoading}
-          creating={creatingList}
-          error={showError ? (loadError ?? "Server returned an error.") : null}
-        />
+      <div className="flex-1 relative min-h-0">
+        {/* Mobile backdrop */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 top-14 z-20 md:hidden bg-background/60 backdrop-blur-sm"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
 
-        <main className="min-w-0 paper overflow-hidden">
-          {showOffline ? (
-            <div className="max-w-3xl mx-auto px-6 md:px-10 py-10">
-              <ErrorPanel
-                title="You're offline"
-                message="Your changes are paused until the connection comes back. We'll sync automatically."
-                onRetry={() => setDemo("ready")}
-              />
-            </div>
-          ) : showError ? (
-            <div className="max-w-3xl mx-auto px-6 md:px-10 py-10">
-              <ErrorPanel
-                title="We couldn't load your lists"
-                message={
-                  loadError ?? "The backend responded with an unexpected error."
-                }
-                onRetry={() => loadAll()}
-              />
-            </div>
-          ) : lists.length === 0 ? (
-            <NoListsEmpty
-              onFocusCreate={() => {
-                const el = document.getElementById("new-list");
-                (el as HTMLInputElement | null)?.focus();
-              }}
-            />
-          ) : !selectedList ? (
-            <NoSelection />
-          ) : (
-            <MainPanel
-              list={selectedList}
-              items={items}
+        <div className="h-full grid grid-cols-1 md:grid-cols-[300px_1fr]">
+          {/* Sidebar: fixed overlay on mobile, grid item on desktop */}
+          <div
+            className={[
+              "fixed top-14 bottom-0 left-0 w-[280px] z-30",
+              "md:static md:top-auto md:bottom-auto md:left-auto md:w-auto md:z-auto",
+              "transition-transform duration-200 ease-in-out",
+              sidebarOpen
+                ? "translate-x-0"
+                : "-translate-x-full md:translate-x-0",
+            ].join(" ")}
+          >
+            <Sidebar
+              lists={lists}
+              selectedId={selectedId}
+              onSelect={handleSelectList}
+              onDelete={requestDeleteList}
+              onCreate={onCreateList}
+              onRename={onRenameList}
               loading={showLoading}
-              onAdd={onAddItem}
-              onToggle={onToggleItem}
-              onDelete={onDeleteItem}
-              onDeleteList={() => requestDeleteList(selectedList.id)}
-              adding={addingItem}
+              creating={creatingList}
+              error={
+                showError ? (loadError ?? "Server returned an error.") : null
+              }
+              onLogout={handleLogout}
+              disabled={!wsId}
             />
-          )}
-        </main>
+          </div>
+
+          <main className="min-w-0 paper overflow-hidden">
+            {showEmptyWorkspace ? (
+              <EmptyWorkspaceCTA
+                loading={creatingDefaultWs}
+                onCreate={onCreateDefaultWorkspace}
+              />
+            ) : showError ? (
+              <div className="max-w-3xl mx-auto px-6 md:px-10 py-10">
+                <ErrorPanel
+                  title="We couldn't load your lists"
+                  message={
+                    loadError ??
+                    "The backend responded with an unexpected error."
+                  }
+                  onRetry={() => wsId && loadLists(wsId)}
+                />
+              </div>
+            ) : lists.length === 0 ? (
+              <NoListsEmpty
+                onFocusCreate={() => {
+                  setSidebarOpen(true);
+                  setTimeout(() => {
+                    const el = document.getElementById("new-list");
+                    (el as HTMLInputElement | null)?.focus();
+                  }, 250);
+                }}
+              />
+            ) : !selectedList ? (
+              <NoSelection />
+            ) : (
+              <MainPanel
+                list={selectedList}
+                items={items}
+                tags={tags}
+                loading={showLoading}
+                onAdd={onAddItem}
+                onToggle={onToggleItem}
+                onDelete={onDeleteItem}
+                onRenameItem={onRenameItem}
+                onRenameList={(name) => onRenameList(selectedList.id, name)}
+                onPatchItem={onPatchItem}
+                onBulkSetChecked={onBulkSetChecked}
+                onBulkDelete={onBulkDelete}
+                onCheckAll={onCheckAll}
+                onUncheckAll={onUncheckAll}
+                onDeleteCompleted={onDeleteCompleted}
+                onDeleteList={() => requestDeleteList(selectedList.id)}
+                adding={addingItem}
+                onCreateTag={createTag}
+              />
+            )}
+          </main>
+        </div>
       </div>
+
+      <FloatingChat />
 
       <AlertDialog
         open={!!pendingDelete}
@@ -338,10 +665,41 @@ function App() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <Toaster richColors position="bottom-right" />
     </div>
   );
 }
 
-export default App;
+function EmptyWorkspaceCTA({
+  loading,
+  onCreate,
+}: {
+  loading: boolean;
+  onCreate: () => void;
+}) {
+  return (
+    <div className="grid place-items-center min-h-[60vh] px-6">
+      <div className="text-center max-w-md">
+        <div
+          className="mx-auto size-16 rounded-2xl grid place-items-center shadow-soft-md"
+          style={{
+            background: "color-mix(in oklab, var(--gb-aqua) 18%, var(--card))",
+          }}
+        >
+          <FolderPlus className="size-7" style={{ color: "var(--gb-aqua)" }} />
+        </div>
+        <h2 className="mt-5">No workspace yet.</h2>
+        <p className="mt-2 text-muted-foreground">
+          Workspaces keep your lists organized. Create one to get started.
+        </p>
+        <Button onClick={onCreate} disabled={loading} className="mt-5 gap-2">
+          {loading ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <FolderPlus className="size-4" />
+          )}
+          Create Default Workspace
+        </Button>
+      </div>
+    </div>
+  );
+}
