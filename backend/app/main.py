@@ -7,16 +7,11 @@ from app.routes import system, list, user, auth, workspace
 
 @asynccontextmanager
 async def lifespan(app_: FastAPI):
-    # Do not run DB initialization at startup in serverless environments.
-    # Initialization will be performed lazily by the middleware on first
-    # request. This avoids process exit when external DB is unreachable
-    # during function startup (e.g., Vercel environments).
+    # Startup
+    await init_db()
     yield
-    # Shutdown: attempt to close DB if available
-    try:
-        close_db()
-    except Exception:
-        pass
+    # Shutdown
+    close_db()
 
 
 app = FastAPI(lifespan=lifespan)
