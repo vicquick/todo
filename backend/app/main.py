@@ -20,7 +20,7 @@ origins = [
     "http://localhost:5173",
     "http://localhost:5174",
     "http://127.0.0.1:5500",
-    "https://todo-lac-six-80.vercel.app",
+    "https://uitodo.netlify.app",
 ]
 
 app.add_middleware(
@@ -38,3 +38,8 @@ app.include_router(
     router=workspace.router, prefix="/api/workspaces", tags=["workspace"]
 )
 app.include_router(router=list.router, prefix="/api", tags=["todo list"])
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("app.main:app", host="0.0.0.0", port=5001, reload=True)
