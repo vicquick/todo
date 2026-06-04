@@ -5,9 +5,13 @@ A simple self-hosted application for managing tasks through workspaces, lists, a
 
 ## Current Features
 
-* User authentication and account management.
+* User authentication and authorization.
+* Account management.
 * Workspace-based organization.
-* List and item management with priorities, descriptions, tags, and completion tracking.
+* List management.
+* Item management with priorities and labels.
+* Completion tracking.
+* Light and dark mode theme.
 
 ## Planned Features
 

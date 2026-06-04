@@ -5,8 +5,8 @@ from datetime import datetime, UTC
 
 
 class UserBase(BaseModel):
-    username: str = Field(min_length=4, max_length=25)
-    email: EmailStr = Field(max_length=50)
+    username: str = Field(min_length=3, max_length=30)
+    email: EmailStr = Field(max_length=254)
 
 
 class UserCreate(UserBase):
@@ -21,8 +21,8 @@ class UserResponse(UserBase):
 
 class UserPrivateResponse(BaseModel):
     id: PydanticObjectId
-    username: str = Field(min_length=4, max_length=25)
-    email: EmailStr = Field(max_length=50)
+    username: str 
+    email: EmailStr 
     password_hash: str
     created_at: datetime
     updated_at: datetime
@@ -30,14 +30,14 @@ class UserPrivateResponse(BaseModel):
 
 class UserPublicResponse(BaseModel):
     id: PydanticObjectId
-    username: str = Field(min_length=4, max_length=25)
+    username: str 
     created_at: datetime
     updated_at: datetime
 
 
 class UserUpdate(BaseModel):
-    username: str | None = Field(default=None, min_length=4, max_length=25)
-    email: EmailStr | None = Field(default=None, max_length=50)
+    username: str | None = Field(default=None, min_length=3, max_length=30)
+    email: EmailStr | None = Field(default=None, max_length=254)
 
 
 class ChangePassword(BaseModel):

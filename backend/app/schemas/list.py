@@ -6,7 +6,7 @@ from datetime import datetime, UTC
 
 
 class ListBase(BaseModel):
-    name: str = Field(min_length=1, max_length=50)
+    name: str = Field(min_length=1, max_length=100)
 
 
 class ListResponse(ListBase):
@@ -28,13 +28,13 @@ class ListCreate(ListBase):
 
 
 class ListUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=50)
+    name: str | None = Field(default=None, min_length=1, max_length=100)
     updated_at: datetime = datetime.now(UTC)
 
 
 class ListSummary(BaseModel):
     id: PydanticObjectId
-    name: str = Field(min_length=1, max_length=50)
+    name: str
     item_count: int = Field()
     created_at: datetime
     updated_at: datetime
@@ -42,30 +42,30 @@ class ListSummary(BaseModel):
 
 class ItemBase(BaseModel):
     item_id: str
-    label: str = Field(min_length=1, max_length=250)
+    label: str 
     checked: bool = Field(default=False)
-    priority: int | None = Field(default=None, ge=1, le=3)
+    priority: int | None = Field(default=None)
     tags: list[str] = []
-    description: str | None = Field(default=None, min_length=1, max_length=150)
+    description: str | None = Field(default=None)
     created_at: datetime
     updated_at: datetime
 
 
 class ItemCreate(BaseModel):
-    label: str = Field(min_length=1, max_length=50)
+    label: str = Field(min_length=1, max_length=250)
     checked: bool = Field(default=False)
     priority: int | None = Field(default=None, ge=1, le=3)
     tags: list[str] = []
-    description: str | None = Field(default=None, min_length=1, max_length=150)
+    description: str | None = Field(default=None, min_length=0, max_length=10000)
 
 
 class ItemUpdatePartial(BaseModel):
     item_id: str
-    label: str | None = Field(default=None, min_length=1, max_length=50)
+    label: str | None = Field(default=None, min_length=1, max_length=250)
     checked: bool | None = Field(default=None)
     priority: int | None = Field(default=None, ge=1, le=3)
     tags: list[str] = []
-    description: str | None = Field(default=None, min_length=1, max_length=150)
+    description: str | None = Field(default=None, min_length=0, max_length=10000)
     updated_at: datetime = datetime.now(UTC)
 
 
