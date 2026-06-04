@@ -1,11 +1,13 @@
-from pwdlib import PasswordHash
-from datetime import timedelta, datetime, UTC
-from app.config import settings
-import jwt
-from fastapi.security import OAuth2PasswordBearer
-
 from typing import Annotated
 from fastapi import Depends, HTTPException, status
+from pwdlib import PasswordHash
+from datetime import timedelta, datetime, UTC
+import jwt
+import secrets
+import hashlib
+
+from fastapi.security import OAuth2PasswordBearer
+from app.config import settings
 from app.models import User
 from app.schemas.user import UserPrivateResponse
 
@@ -20,6 +22,11 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hash: str) -> bool:
     return password_hash.verify(password, hash)
 
+def create_reset_token() -> str:
+    return secrets.token_urlsafe(32)
+
+def hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
 def create_token(data: dict, type: str, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()

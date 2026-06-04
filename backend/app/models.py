@@ -42,9 +42,7 @@ class List(Document):
 
     class Settings:
         name = "lists"
-        indexes = [
-            "user_id",
-        ]
+        indexes = ["user_id", "workspace_id"]
 
 
 class User(Document):
@@ -56,9 +54,18 @@ class User(Document):
 
     class Settings:
         name = "users"
-        indexes = [
-            "username",
-        ]
+        indexes = ["username", "email"]
+
+
+class ResetToken(Document):
+    token_hash: str
+    user_id: PydanticObjectId
+    created_at: datetime = datetime.now(UTC)
+    expires_at: datetime
+
+    class Settings:
+        name = "reset_token"
+        indexes = ["token_hash", "user_id"]
 
 
 class Workspace(Document):
@@ -69,7 +76,4 @@ class Workspace(Document):
 
     class Settings:
         name = "workspaces"
-        indexes = [
-            "user_id",
-            "name",
-        ]
+        indexes = ["user_id"]

@@ -7,16 +7,26 @@ class Settings(BaseSettings):
     # API
     base_url: str
     cors_origin: str = "https://uitodo.netlify.app"
+    frontend_url: str = "https://uitodo.netlify.app"
 
     # Database
     mongo_url: SecretStr
-    mongo_db: str
+    mongo_db: str = "todolist"
 
     # Auth
     access_token_expire_minutes: int = 30
+    reset_token_expire_minutes: int = 60
     refresh_token_expire_days: int = 7
     algorithm: str = "HS256"
     secret_key: SecretStr
+
+    # Mail
+    mail_from: str
+    mail_host: str
+    mail_port: int
+    mail_username: str
+    mail_password: SecretStr
+    use_tls: bool = True
 
 
 settings = Settings()  # type: ignore[call-arg]
