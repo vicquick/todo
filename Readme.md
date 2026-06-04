@@ -2,6 +2,7 @@
 
 A simple self-hosted application for managing tasks through workspaces, lists, and items.
 
+[![Netlify Status](https://api.netlify.com/api/v1/badges/896577af-abb2-47a0-a8a4-1f01f868454b/deploy-status)](https://app.netlify.com/projects/uitodo/deploys)
 
 ## Current Features
 

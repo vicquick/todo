@@ -21,7 +21,7 @@ router = APIRouter()
 async def fetch_lists(workspace_id: PydanticObjectId, current_user: currentUser):
     workspace = await Workspace.find_one(
         Workspace.id == workspace_id, Workspace.user_id == current_user.id
-    ).sort("+created_at")
+    ).sort("-created_at")
     if not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="workspace not found"
