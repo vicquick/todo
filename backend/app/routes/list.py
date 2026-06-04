@@ -184,7 +184,7 @@ async def update_item_state(
             if update.label is not None:
                 item.label = update.label
                 # await todolist.save()
-            if update.priority is not None:
+            if update.priority or update.priority is None:
                 item.priority = update.priority
                 # await todolist.save()
             if update.description is not None:
