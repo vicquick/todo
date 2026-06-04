@@ -21,8 +21,8 @@ class UserResponse(UserBase):
 
 class UserPrivateResponse(BaseModel):
     id: PydanticObjectId
-    username: str 
-    email: EmailStr 
+    username: str
+    email: EmailStr
     password_hash: str
     created_at: datetime
     updated_at: datetime
@@ -30,7 +30,7 @@ class UserPrivateResponse(BaseModel):
 
 class UserPublicResponse(BaseModel):
     id: PydanticObjectId
-    username: str 
+    username: str
     created_at: datetime
     updated_at: datetime
 
@@ -43,5 +43,3 @@ class UserUpdate(BaseModel):
 class ChangePassword(BaseModel):
     current_password: str
     new_password: str = Field(min_length=6)
-
-

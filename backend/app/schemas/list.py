@@ -1,7 +1,6 @@
 from __future__ import annotations
 from pydantic import BaseModel, Field
 from beanie import PydanticObjectId
-import uuid
 from datetime import datetime, UTC
 
 
@@ -42,7 +41,7 @@ class ListSummary(BaseModel):
 
 class ItemBase(BaseModel):
     item_id: str
-    label: str 
+    label: str
     checked: bool = Field(default=False)
     priority: int | None = Field(default=None)
     tags: list[str] = []

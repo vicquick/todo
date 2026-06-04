@@ -5,19 +5,20 @@ services:
     ports:
       - 8888:80
     env_file:
-      - backend/.env
+      - .env
     networks:
       - nginx
+
   todo-frontend:
     container_name: todo-frontend
     image: virajsh/todo-frontend:latest
     ports:
       - 5173:80
     env_file:
-      - frontend/.env
-    
+      - .env
     networks:
       - nginx
+
   mongo:
     container_name: todo-database
     image: mongo:8.3.2
@@ -25,8 +26,8 @@ services:
       - 20000:27017
     env_file:
       - .env
-    
     networks:
       - nginx
+
 networks:
   nginx:

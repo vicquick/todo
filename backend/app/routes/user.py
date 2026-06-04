@@ -68,9 +68,9 @@ async def update_user_partial(user_data: UserUpdate, current_user: currentUser):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="user not found"
         )
-    if user_data.username != None:
+    if user_data.username is not None:
         await user.update({"$set": {"username": user_data.username}})
-    if user_data.email != None:
+    if user_data.email is not None:
         await user.update({"$set": {"email": user_data.email}})
     await user.update({"$set": {"updated_at": datetime.now(UTC)}})
     return await user.get(user.id)
