@@ -1,7 +1,29 @@
 from pydantic import BaseModel, Field
 from beanie import PydanticObjectId
 from pydantic import EmailStr
-from datetime import datetime, UTC
+from datetime import datetime
+from app.auth import settings
+
+
+class ApiKeyBase(BaseModel):
+    id: PydanticObjectId
+    name: str
+    prefix: str
+    created_at: datetime
+    expires_at: datetime | None
+
+
+class ApiKeyFullResponse(ApiKeyBase):
+    key: str
+
+
+class ApiKeyResponse(ApiKeyBase):
+    pass
+
+
+class ApiKeyCreate(BaseModel):
+    name: str = Field(min_length=3, max_length=64)
+    expire_in: int | None = Field(default=None, ge=1, le=90)
 
 
 class UserBase(BaseModel):

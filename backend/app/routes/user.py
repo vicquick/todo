@@ -1,3 +1,4 @@
+from beanie import PydanticObjectId
 from fastapi import APIRouter, status, HTTPException
 from app.schemas.user import (
     UserCreate,
@@ -5,10 +6,20 @@ from app.schemas.user import (
     UserPublicResponse,
     UserUpdate,
     ChangePassword,
+    ApiKeyResponse,
+    ApiKeyFullResponse,
+    ApiKeyCreate,
 )
-from app.models import User, List
-from app.auth import hash_password, currentUser, verify_password
-from datetime import datetime, UTC
+from app.config import settings
+from app.models import ApiKey, User, List
+from app.auth import (
+    hash_password,
+    currentUser,
+    verify_password,
+    generate_secure_token,
+    hash_secure_token,
+)
+from datetime import datetime, UTC, timedelta
 
 router = APIRouter()
 
@@ -97,3 +108,68 @@ async def change_password(passwordData: ChangePassword, current_user: currentUse
 @router.get("/tags", status_code=status.HTTP_200_OK)
 async def fetch_user_tags(current_user: currentUser):
     return await List.get_all_user_tags(current_user.id)
+
+
+@router.get(
+    "/api-keys", response_model=list[ApiKeyResponse], status_code=status.HTTP_200_OK
+)
+async def fetch_api_keys(current_user: currentUser):
+    return await ApiKey.find_many(ApiKey.user_id == current_user.id).to_list()
+
+
+@router.post(
+    "/api-keys", response_model=ApiKeyResponse, status_code=status.HTTP_201_CREATED
+)
+async def create_api_key(input_data: ApiKeyCreate, current_user: currentUser):
+    api_key_count = await ApiKey.find(ApiKey.user_id == current_user.id).count()
+    if api_key_count > settings.max_api_key_count:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="api key limit reached"
+        )
+    existing_api_key = await ApiKey.find_one(
+        ApiKey.name == input_data.name, ApiKey.user_id == current_user.id
+    )
+    if existing_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="api key name already in use",
+        )
+    if input_data.expire_in is not None:
+        expire = datetime.now(UTC) + timedelta(days=input_data.expire_in)
+    else:
+        expire = None
+
+    api_key = generate_secure_token(type="api_key")
+    new_api_key = ApiKey(
+        user_id=current_user.id,
+        name=input_data.name,
+        key_hash=hash_secure_token(api_key),
+        prefix=api_key[:8],
+        expires_at=expire,
+    )
+    await new_api_key.create()
+    if new_api_key.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="failed to create api key",
+        )
+    return ApiKeyFullResponse(
+        id=new_api_key.id,
+        name=input_data.name,
+        prefix=api_key[:8],
+        created_at=datetime.now(UTC),
+        expires_at=expire,
+        key=api_key,
+    )
+
+
+@router.delete("/api-keys/{api_key_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_api_keys(api_key_id: PydanticObjectId, current_user: currentUser):
+    api_key = await ApiKey.find_one(
+        ApiKey.id == api_key_id, ApiKey.user_id == current_user.id
+    )
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="api key not found"
+        )
+    await api_key.delete()

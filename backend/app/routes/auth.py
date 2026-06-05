@@ -12,7 +12,7 @@ from app.auth import (
     verify_password,
     currentUser,
     create_token,
-    create_reset_token,
+    generate_secure_token,
     hash_reset_token,
 )
 from app.config import settings
@@ -73,7 +73,7 @@ async def forgot_password(user_input: ForgotPassword, background_task: Backgroun
         expire = datetime.now(UTC) + timedelta(
             minutes=settings.reset_token_expire_minutes
         )
-        reset_token = create_reset_token()
+        reset_token = generate_secure_token()
         new_reset_token = ResetToken(
             token_hash=hash_reset_token(reset_token),
             user_id=user.id,

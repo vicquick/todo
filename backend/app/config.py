@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     secret_key: SecretStr
 
+    # ApiKey
+    max_api_key_count: int = 5
+
     # Mail
     mail_from: str
     mail_host: str

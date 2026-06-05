@@ -2,7 +2,9 @@ from beanie import Document, PydanticObjectId
 from pydantic import EmailStr
 from app.schemas.list import ItemBase
 from app.schemas.list import ListSummary
-from datetime import datetime, UTC
+from datetime import datetime, UTC, timedelta
+
+from app.config import settings
 
 
 class List(Document):
@@ -66,6 +68,20 @@ class ResetToken(Document):
     class Settings:
         name = "reset_token"
         indexes = ["token_hash", "user_id"]
+
+
+class ApiKey(Document):
+    user_id: PydanticObjectId
+    name: str
+    key_hash: str
+    prefix: str
+    is_active: bool = True
+    created_at: datetime = datetime.now(UTC)
+    expires_at: datetime | None
+
+    class Settings:
+        name = "apikey"
+        indexes = ["user_id", "name"]
 
 
 class Workspace(Document):

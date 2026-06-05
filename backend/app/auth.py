@@ -23,8 +23,14 @@ def verify_password(password: str, hash: str) -> bool:
     return password_hash.verify(password, hash)
 
 
-def create_reset_token() -> str:
+def generate_secure_token(type: str = "reset") -> str:
+    if type == "api_key":
+        return "sk_" + secrets.token_urlsafe(32)
     return secrets.token_urlsafe(32)
+
+
+def hash_secure_token(token: str) -> str:
+    return password_hash.hash(token)
 
 
 def hash_reset_token(token: str) -> str:
