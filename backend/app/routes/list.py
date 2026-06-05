@@ -21,7 +21,7 @@ router = APIRouter()
 async def fetch_lists(workspace_id: PydanticObjectId, current_user: currentUser):
     workspace = await Workspace.find_one(
         Workspace.id == workspace_id, Workspace.user_id == current_user.id
-    ).sort("-created_at")
+    )
     if not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="workspace not found"
@@ -180,18 +180,16 @@ async def update_item_state(
         if item.item_id == update.item_id:
             if update.checked is not None:
                 item.checked = update.checked
-                # await todolist.save()
             if update.label is not None:
                 item.label = update.label
-                # await todolist.save()
             if update.priority or update.priority is None:
                 item.priority = update.priority
-                # await todolist.save()
             if update.description is not None:
                 item.description = update.description
             if update.tags is not None:
                 item.tags = update.tags
-                # await todolist.save()
+            if update.deadline or update.deadline is None:
+                item.deadline = update.deadline
             item.updated_at = datetime.now(UTC)
             await todolist.save()
             await todolist.update({"$set": {"updated_at": datetime.now(UTC)}})

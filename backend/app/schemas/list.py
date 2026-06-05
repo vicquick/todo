@@ -46,6 +46,7 @@ class ItemBase(BaseModel):
     priority: int | None = Field(default=None)
     tags: list[str] = []
     description: str | None = Field(default=None)
+    deadline: datetime | None = Field(default=None)
     created_at: datetime
     updated_at: datetime
 
@@ -56,6 +57,7 @@ class ItemCreate(BaseModel):
     priority: int | None = Field(default=None, ge=1, le=3)
     tags: list[str] = []
     description: str | None = Field(default=None, min_length=0, max_length=10000)
+    deadline: datetime | None = Field(default=None)
 
 
 class ItemUpdatePartial(BaseModel):
@@ -65,6 +67,7 @@ class ItemUpdatePartial(BaseModel):
     priority: int | None = Field(default=None, ge=1, le=3)
     tags: list[str] = []
     description: str | None = Field(default=None, min_length=0, max_length=10000)
+    deadline: datetime | None = Field(default=None)
     updated_at: datetime = datetime.now(UTC)
 
 
