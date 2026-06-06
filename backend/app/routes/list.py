@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, status, HTTPException
+from fastapi import APIRouter, File, HTTPException, Response, UploadFile, status
 from sqlalchemy import func, select
 
 from app.schemas.list import (
@@ -12,7 +12,7 @@ from app.schemas.list import (
     ListUpdate,
     ItemUpdatePartial,
 )
-from app.models import Item, List as ListModel, Workspace, utcnow
+from app.models import Item, List as ListModel, ListImage, Workspace, utcnow
 from app.database import SessionDep
 from app.utils import normalize_tags
 from app.auth import currentUser
@@ -67,6 +67,7 @@ async def fetch_lists(
             ListModel.id,
             ListModel.name,
             ListModel.description,
+            ListModel.image_mime,
             func.count(Item.id).label("item_count"),
             ListModel.created_at,
             ListModel.updated_at,
@@ -82,6 +83,7 @@ async def fetch_lists(
             id=row.id,
             name=row.name,
             description=row.description,
+            image_mime=row.image_mime,
             item_count=row.item_count,
             created_at=row.created_at,
             updated_at=row.updated_at,
@@ -165,6 +167,91 @@ async def delete_lists(
     todolist = await get_list_in_workspace(session, workspace_id, list_id)
     await session.delete(todolist)
     await session.commit()
+
+
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+MAX_IMAGE_BYTES = 3 * 1024 * 1024
+
+
+@router.put(
+    "/workspaces/{workspace_id}/lists/{list_id}/image",
+    response_model=ListDetailedResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def set_list_image(
+    workspace_id: UUID,
+    list_id: UUID,
+    current_user: currentUser,
+    session: SessionDep,
+    file: UploadFile = File(...),
+):
+    await get_owned_workspace(session, workspace_id, current_user.id)
+    todolist = await get_list_in_workspace(session, workspace_id, list_id)
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="image must be jpeg, png, webp or gif",
+        )
+    data = await file.read()
+    if len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="image must be 3 MB or smaller",
+        )
+    image = await session.get(ListImage, todolist.id)
+    if image:
+        image.mime = file.content_type
+        image.data = data
+        image.updated_at = utcnow()
+    else:
+        session.add(ListImage(list_id=todolist.id, mime=file.content_type, data=data))
+    todolist.image_mime = file.content_type
+    todolist.updated_at = utcnow()
+    await session.commit()
+    return await get_list_in_workspace(session, workspace_id, list_id)
+
+
+@router.delete(
+    "/workspaces/{workspace_id}/lists/{list_id}/image",
+    response_model=ListDetailedResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def delete_list_image(
+    workspace_id: UUID,
+    list_id: UUID,
+    current_user: currentUser,
+    session: SessionDep,
+):
+    await get_owned_workspace(session, workspace_id, current_user.id)
+    todolist = await get_list_in_workspace(session, workspace_id, list_id)
+    image = await session.get(ListImage, todolist.id)
+    if image:
+        await session.delete(image)
+    todolist.image_mime = None
+    todolist.updated_at = utcnow()
+    await session.commit()
+    return await get_list_in_workspace(session, workspace_id, list_id)
+
+
+@router.get("/workspaces/{workspace_id}/lists/{list_id}/image")
+async def fetch_list_image(
+    workspace_id: UUID,
+    list_id: UUID,
+    current_user: currentUser,
+    session: SessionDep,
+):
+    await get_owned_workspace(session, workspace_id, current_user.id)
+    todolist = await get_list_in_workspace(session, workspace_id, list_id)
+    image = await session.get(ListImage, todolist.id)
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="no image set"
+        )
+    return Response(
+        content=image.data,
+        media_type=image.mime,
+        headers={"Cache-Control": "private, max-age=60"},
+    )
 
 
 @router.post(

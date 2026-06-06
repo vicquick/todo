@@ -40,6 +40,7 @@ type Filter = "all" | "active" | "done";
 
 type Props = {
   list: TodoList;
+  wsId: string;
   items: TodoItem[];
   tags: Tag[];
   loading?: boolean;
@@ -52,6 +53,8 @@ type Props = {
   onRenameItem: (id: string, label: string) => void;
   onRenameList: (name: string) => void;
   onUpdateDescription: (description: string) => void;
+  onUploadImage: (file: File) => void;
+  onRemoveImage: () => void;
   onPatchItem: (itemId: string, patch: ItemPatch) => void;
 
   onBulkSetChecked: (ids: string[], checked: boolean) => void;
@@ -72,8 +75,9 @@ const accentVar: Record<TodoList["accent"], string> = {
 };
 
 export function MainPanel({
-  list, items, tags, loading, error, adding,
-  onAdd, onToggle, onDelete, onRenameItem, onRenameList, onUpdateDescription, onPatchItem,
+  list, wsId, items, tags, loading, error, adding,
+  onAdd, onToggle, onDelete, onRenameItem, onRenameList, onUpdateDescription,
+  onUploadImage, onRemoveImage, onPatchItem,
   onBulkSetChecked, onBulkDelete, onCheckAll, onUncheckAll, onDeleteCompleted,
   onRetry, onDeleteList, onCreateTag,
 }: Props) {
@@ -87,6 +91,40 @@ export function MainPanel({
   const [editingSubtitle, setEditingSubtitle] = useState(false);
   const [subtitleDraft, setSubtitleDraft] = useState(list.description ?? "");
   const subtitleRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // project picture — authed fetch → object URL
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    let url: string | null = null;
+    if (list.imageMime && wsId) {
+      import("../../api/client").then((api) =>
+        api.fetchListImage(wsId, list.id).then((blob) => {
+          if (!alive) return;
+          url = URL.createObjectURL(blob);
+          setImageUrl(url);
+        }).catch(() => alive && setImageUrl(null)),
+      );
+    } else {
+      setImageUrl(null);
+    }
+    return () => {
+      alive = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [list.id, list.imageMime, wsId]);
+
+  const pickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      import("sonner").then(({ toast }) => toast.error("Image too large", { description: "3 MB maximum." }));
+      return;
+    }
+    onUploadImage(file);
+  };
 
   // new-item options
   const [newPriority, setNewPriority] = useState<Priority | undefined>(undefined);
@@ -181,11 +219,23 @@ export function MainPanel({
       <div className="max-w-3xl mx-auto px-6 md:px-10 py-8 md:py-12 pb-32">
         {/* Header */}
         <header className="flex items-start gap-4 flex-wrap">
-          <div aria-hidden className="size-11 rounded-xl shrink-0 shadow-soft-sm"
-            style={{
-              background: `linear-gradient(135deg, ${accentVar[list.accent]} 0%, color-mix(in oklab, ${accentVar[list.accent]} 60%, var(--gb-bg2)) 100%)`,
-            }}
-          />
+          <input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif"
+            className="hidden" onChange={pickImage} aria-hidden />
+          {imageUrl ? (
+            <button type="button" onClick={() => imageInputRef.current?.click()}
+              title="Change project picture"
+              className="size-11 rounded-xl shrink-0 shadow-soft-sm overflow-hidden border border-border-strong">
+              <img src={imageUrl} alt="" className="size-full object-cover" />
+            </button>
+          ) : (
+            <button type="button" aria-hidden onClick={() => imageInputRef.current?.click()}
+              title="Add project picture"
+              className="size-11 rounded-xl shrink-0 shadow-soft-sm"
+              style={{
+                background: `linear-gradient(135deg, ${accentVar[list.accent]} 0%, color-mix(in oklab, ${accentVar[list.accent]} 60%, var(--gb-bg2)) 100%)`,
+              }}
+            />
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
               <span>Project</span>
@@ -260,9 +310,14 @@ export function MainPanel({
                 <DropdownMenuItem onClick={() => { setSubtitleDraft(list.description ?? ""); setEditingSubtitle(true); }}>
                   <AlignLeft className="size-4" /> {list.description ? "Edit subtitle" : "Add subtitle"}
                 </DropdownMenuItem>
-                <DropdownMenuItem disabled title="Project pictures arrive with the media tranche">
-                  <ImageIcon className="size-4" /> Change picture… <span className="ml-auto font-mono text-[0.6rem] text-muted-foreground">soon</span>
+                <DropdownMenuItem onClick={() => imageInputRef.current?.click()}>
+                  <ImageIcon className="size-4" /> {list.imageMime ? "Change picture…" : "Upload picture…"}
                 </DropdownMenuItem>
+                {list.imageMime && (
+                  <DropdownMenuItem onClick={onRemoveImage}>
+                    <X className="size-4" /> Remove picture
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuLabel className="font-mono text-[0.7rem] tracking-wider uppercase">Quick actions</DropdownMenuLabel>
                 <DropdownMenuItem onClick={onCheckAll}><CheckCheck className="size-4" /> Check all tasks</DropdownMenuItem>

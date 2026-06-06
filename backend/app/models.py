@@ -1,7 +1,15 @@
 import uuid
 from datetime import datetime, UTC
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -57,6 +65,7 @@ class List(Base, TimestampMixin):
     )
     name: Mapped[str] = mapped_column(String(100))
     description: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    image_mime: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     items: Mapped[list["Item"]] = relationship(
         cascade="all, delete-orphan",
@@ -82,6 +91,21 @@ class Item(Base, TimestampMixin):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     deadline: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+
+
+class ListImage(Base):
+    """Project picture, stored in the database so it rides pg_dump backups."""
+
+    __tablename__ = "list_images"
+
+    list_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("lists.id", ondelete="CASCADE"), primary_key=True
+    )
+    mime: Mapped[str] = mapped_column(String(64))
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
     )
 
 

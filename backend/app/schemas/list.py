@@ -13,6 +13,7 @@ class ListResponse(ListBase):
 
     id: UUID
     description: str | None = None
+    image_mime: str | None = None
     items: list[ItemResponse]
     created_at: datetime
     updated_at: datetime
@@ -35,6 +36,7 @@ class ListSummary(BaseModel):
     id: UUID
     name: str
     description: str | None = None
+    image_mime: str | None = None
     item_count: int
     created_at: datetime
     updated_at: datetime

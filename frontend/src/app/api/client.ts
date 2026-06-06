@@ -108,6 +108,7 @@ export type ServerList = {
   id: string;
   name: string;
   description?: string | null;
+  image_mime?: string | null;
   items?: ServerItem[];
   item_count?: number;
   created_at?: string;
@@ -149,6 +150,7 @@ export function toTodoList(l: ServerList): TodoList {
     id: l.id,
     name: l.name,
     description: l.description ?? null,
+    imageMime: l.image_mime ?? null,
     itemCount: l.items ? items.length : (l.item_count ?? 0),
     completedCount: items.filter((x) => x.checked).length,
     accent: accentFor(l.id),
@@ -368,6 +370,44 @@ export async function deleteList(
   await request<void>(`/api/workspaces/${workspaceId}/lists/${listId}`, {
     method: "DELETE",
   });
+}
+
+export async function uploadListImage(
+  workspaceId: string,
+  listId: string,
+  file: File,
+): Promise<{ list: TodoList; items: TodoItem[] }> {
+  const fd = new FormData();
+  fd.append("file", file);
+  const data = await request<ServerList>(
+    `/api/workspaces/${workspaceId}/lists/${listId}/image`,
+    { method: "PUT", body: fd, form: true },
+  );
+  return { list: toTodoList(data), items: (data.items ?? []).map(toTodoItem) };
+}
+
+export async function removeListImage(
+  workspaceId: string,
+  listId: string,
+): Promise<{ list: TodoList; items: TodoItem[] }> {
+  const data = await request<ServerList>(
+    `/api/workspaces/${workspaceId}/lists/${listId}/image`,
+    { method: "DELETE" },
+  );
+  return { list: toTodoList(data), items: (data.items ?? []).map(toTodoItem) };
+}
+
+export async function fetchListImage(
+  workspaceId: string,
+  listId: string,
+): Promise<Blob> {
+  const t = tokenStore.get();
+  const res = await fetch(
+    `${BASE_URL}/api/workspaces/${workspaceId}/lists/${listId}/image`,
+    { headers: t ? { Authorization: `Bearer ${t}` } : {} },
+  );
+  if (!res.ok) throw new ApiError(res.status, "Couldn't load image");
+  return res.blob();
 }
 
 // ───── Items ───────────────────────────────────────────────

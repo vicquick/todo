@@ -306,6 +306,30 @@ function Dashboard({
     }
   };
 
+  const onUploadImage = async (file: File) => {
+    if (!selectedId || !wsId) return;
+    try {
+      const { list, items } = await api.uploadListImage(wsId, selectedId, file);
+      setLists((ls) => ls.map((l) => (l.id === list.id ? list : l)));
+      setItemsByList((m) => ({ ...m, [list.id]: items }));
+      toast.success("Picture updated");
+    } catch (e: any) {
+      toast.error("Couldn't upload picture", { description: e?.message });
+    }
+  };
+
+  const onRemoveImage = async () => {
+    if (!selectedId || !wsId) return;
+    try {
+      const { list, items } = await api.removeListImage(wsId, selectedId);
+      setLists((ls) => ls.map((l) => (l.id === list.id ? list : l)));
+      setItemsByList((m) => ({ ...m, [list.id]: items }));
+      toast.success("Picture removed");
+    } catch (e: any) {
+      toast.error("Couldn't remove picture", { description: e?.message });
+    }
+  };
+
   const requestDeleteList = (id: string) => {
     const l = lists.find((x) => x.id === id);
     if (!l) return;
@@ -644,6 +668,7 @@ function Dashboard({
             ) : (
               <MainPanel
                 list={selectedList}
+                wsId={wsId!}
                 items={items}
                 tags={tags}
                 loading={showLoading}
@@ -653,6 +678,8 @@ function Dashboard({
                 onRenameItem={onRenameItem}
                 onRenameList={(name) => onRenameList(selectedList.id, name)}
                 onUpdateDescription={onUpdateDescription}
+                onUploadImage={onUploadImage}
+                onRemoveImage={onRemoveImage}
                 onPatchItem={onPatchItem}
                 onBulkSetChecked={onBulkSetChecked}
                 onBulkDelete={onBulkDelete}
