@@ -1,31 +1,46 @@
-# TodoList
+# Cairn — self-hosted todo
 
-A simple self-hosted application for managing tasks through workspaces, lists, and items.
+A self-hosted task management app: workspaces → lists → items. Fork of
+[OyaAIProd/todo](https://github.com/OyaAIProd/todo), rebuilt on PostgreSQL
+and actively developed.
 
-[![Netlify Status](https://api.netlify.com/api/v1/badges/896577af-abb2-47a0-a8a4-1f01f868454b/deploy-status)](https://app.netlify.com/projects/uitodo/deploys)
+**Stack:** FastAPI · SQLAlchemy 2.0 (async) · PostgreSQL · React · Vite · Tailwind · shadcn/ui
 
-## Current Features
+## Features
 
-- User authentication and authorization.
-- Account management.
-- Workspace-based organization.
-- List management.
-- Item management with priorities and labels.
-- Completion tracking.
-- Light and dark mode theme.
-- Bulk item actions.
-- MCP server support.
-- Refresh token with JWT authentication.
-- Password reset workflow which sends email via external service resend.
+- User authentication (JWT + refresh tokens, argon2) and account management
+- API keys for automation
+- Workspace-based organization, lists, items with priorities, tags, deadlines
+- Completion tracking, bulk item actions
+- MCP server (`/mcp`) exposing 15 operations
+- Password reset via any SMTP server (self-hosted Mailu works fine)
+- Light and dark mode
 
-## Planned Features
+## Roadmap
 
-- Email reminders.
-- AI-assisted task creation.
-- AI chat integration.
-- LLM integrations.
-- Additional productivity and organization features.
+- Core parity tranche: recurring items, subtasks, manual sort order
+- Workspace/project images and thumbnails
+- Kanban, table and gantt views
+- Telegram bot (create via message, daily digest)
+- Quick-add natural language parsing
+- AI-assisted task creation
 
-## Current State: Development
+## Development
 
-## License: GNU General Public License (GPL)
+```bash
+cp .env.example .env   # fill in values
+docker compose up --build
+```
+
+Backend on :8888, frontend on :5173, PostgreSQL 17 with a persisted volume.
+
+## Deployment
+
+Built as two Docker images (`backend/Dockerfile`, `frontend/Dockerfile`).
+`VITE_API_BASE_URL` is baked at frontend build time — leave it empty for
+same-origin `/api` behind a reverse proxy. See `.env.example` for backend
+configuration; `DATABASE_URL` must use the `postgresql+asyncpg://` scheme.
+
+## License
+
+AGPL-3.0

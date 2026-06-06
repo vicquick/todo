@@ -348,12 +348,12 @@ function AboutTab() {
       <SectionCard title="About Cairn">
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Cairn is an open-source task management app built on the FARM stack — FastAPI, React, and MongoDB.
+            Cairn is an open-source task management app built with FastAPI, React, and PostgreSQL.
             It features workspace-scoped lists and items, priority tagging, AI-powered task assistance, and a
             focused Gruvbox aesthetic designed for long work sessions.
           </p>
           <div className="flex flex-wrap gap-2 pt-1">
-            {["FastAPI", "React", "MongoDB", "Tailwind CSS", "shadcn/ui"].map((t) => (
+            {["FastAPI", "React", "PostgreSQL", "Tailwind CSS", "shadcn/ui"].map((t) => (
               <span key={t} className="inline-flex items-center rounded-full border border-border bg-card px-2.5 py-0.5 text-xs font-mono text-muted-foreground">
                 {t}
               </span>

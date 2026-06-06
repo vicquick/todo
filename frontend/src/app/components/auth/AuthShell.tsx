@@ -53,7 +53,7 @@ export function AuthShell({
             </div>
             <div>
               <div className="text-sm">Cairn — a calm place for tasks</div>
-              <div className="text-xs text-muted-foreground font-mono">FastAPI · React · MongoDB</div>
+              <div className="text-xs text-muted-foreground font-mono">FastAPI · React · PostgreSQL</div>
             </div>
           </div>
 
