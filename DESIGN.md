@@ -91,12 +91,12 @@ afterwards.
 - ✅ **Subtasks** (shipped 2026-06-06): `parent_id` on items, one level deep, indent UI, n/m chip on parents, DB cascade.
 - ✅ **Due-date UX** (shipped 2026-06-06): row chips with overdue tint, date editor in expanded panel. Still open: Today/Upcoming smart views.
 - ✅ **Progress rings** (shipped 2026-06-06): per-project completion rings in the sidebar, completed_count in summaries.
-- **Recurring tasks**: rrule-lite fields (daily/weekly/monthly/last-day like tududi); materialize next occurrence on completion.
-- **Manual sort order**: `position` column; drag with the already-bundled react-dnd.
-- Recurrence + ordering required before the tududi migration.
+- ✅ **Recurring tasks** (shipped 2026-06-06): daily/weekly/monthly/monthly_last, next occurrence spawns on completion with calendar-aware deadline advance.
+- ✅ **Manual sort order** (shipped 2026-06-06): `position` float, fractional indexing, grip-drag in list view.
+- **M2 is complete** — the tududi migration is unblocked.
 
 ### M3 — Views & structure
-- **Kanban** per project (columns = status or custom), drag between columns.
+- ✅ **Kanban** (shipped 2026-06-06): List|Board switcher per project, todo/doing/done columns (items.status, two-way synced with checked), drag between columns.
 - **Table view** (sortable columns, inline edit).
 - **Gantt** (deadline + new start_date; lightweight SVG, no heavy dep).
 - **Milestones**: named markers per project with target dates; tasks attach to a milestone; progress = checked/total.
