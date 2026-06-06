@@ -1,18 +1,20 @@
 from beanie import Document, PydanticObjectId
-from pydantic import EmailStr
+from pydantic import EmailStr, Field
 from app.schemas.list import ItemBase
 from app.schemas.list import ListSummary
-from datetime import datetime, UTC, timedelta
+from datetime import datetime, UTC
 
-from app.config import settings
+
+def utcnow() -> datetime:
+    return datetime.now(UTC)
 
 
 class List(Document):
     workspace_id: PydanticObjectId
     name: str
     items: list[ItemBase] = []
-    created_at: datetime = datetime.now(UTC)
-    updated_at: datetime = datetime.now(UTC)
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
 
     @staticmethod
     async def list_summaries(workspace_id: PydanticObjectId) -> list[ListSummary]:
@@ -32,8 +34,14 @@ class List(Document):
 
     @staticmethod
     async def get_all_user_tags(user_id: PydanticObjectId) -> list[str]:
+        workspace_ids = [
+            workspace.id
+            for workspace in await Workspace.find(
+                Workspace.user_id == user_id
+            ).to_list()
+        ]
         pipeline = [
-            {"$match": {"user_id": user_id}},
+            {"$match": {"workspace_id": {"$in": workspace_ids}}},
             {"$unwind": "$items"},
             {"$unwind": "$items.tags"},
             {"$group": {"_id": "$items.tags"}},
@@ -44,15 +52,15 @@ class List(Document):
 
     class Settings:
         name = "lists"
-        indexes = ["user_id", "workspace_id"]
+        indexes = ["workspace_id"]
 
 
 class User(Document):
     username: str
     email: EmailStr
     password_hash: str
-    created_at: datetime = datetime.now(UTC)
-    updated_at: datetime = datetime.now(UTC)
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
 
     class Settings:
         name = "users"
@@ -62,7 +70,7 @@ class User(Document):
 class ResetToken(Document):
     token_hash: str
     user_id: PydanticObjectId
-    created_at: datetime = datetime.now(UTC)
+    created_at: datetime = Field(default_factory=utcnow)
     expires_at: datetime
 
     class Settings:
@@ -76,7 +84,7 @@ class ApiKey(Document):
     key_hash: str
     prefix: str
     last_used_at: datetime | None = None
-    created_at: datetime = datetime.now(UTC)
+    created_at: datetime = Field(default_factory=utcnow)
     expires_at: datetime | None
 
     class Settings:
@@ -87,8 +95,8 @@ class ApiKey(Document):
 class Workspace(Document):
     user_id: PydanticObjectId
     name: str
-    created_at: datetime = datetime.now(UTC)
-    updated_at: datetime = datetime.now(UTC)
+    created_at: datetime = Field(default_factory=utcnow)
+    updated_at: datetime = Field(default_factory=utcnow)
 
     class Settings:
         name = "workspaces"

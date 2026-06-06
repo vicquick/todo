@@ -1,7 +1,7 @@
 from __future__ import annotations
 from pydantic import BaseModel, Field
 from beanie import PydanticObjectId
-from datetime import datetime, UTC
+from datetime import datetime
 
 
 class ListBase(BaseModel):
@@ -28,7 +28,6 @@ class ListCreate(ListBase):
 
 class ListUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=100)
-    updated_at: datetime = datetime.now(UTC)
 
 
 class ListSummary(BaseModel):
@@ -65,10 +64,9 @@ class ItemUpdatePartial(BaseModel):
     label: str | None = Field(default=None, min_length=1, max_length=250)
     checked: bool | None = Field(default=None)
     priority: int | None = Field(default=None, ge=1, le=3)
-    tags: list[str] = []
+    tags: list[str] | None = Field(default=None)
     description: str | None = Field(default=None, min_length=0, max_length=10000)
     deadline: datetime | None = Field(default=None)
-    updated_at: datetime = datetime.now(UTC)
 
 
 class ItemResponse(ItemBase):

@@ -189,21 +189,16 @@ async def update_item_state(
         )
     for item in todolist.items:
         if item.item_id == update.item_id:
-            if update.checked is not None:
-                item.checked = update.checked
-            if update.label is not None:
-                item.label = update.label
-            if update.priority or update.priority is None:
-                item.priority = update.priority
-            if update.description is not None:
-                item.description = update.description
-            if update.tags is not None:
-                item.tags = update.tags
-            if update.deadline or update.deadline is None:
-                item.deadline = update.deadline
+            changes = update.model_dump(exclude={"item_id"}, exclude_unset=True)
+            if "tags" in changes:
+                changes["tags"] = normalize_tags(changes["tags"])
+            for field, value in changes.items():
+                if value is None and field in ("label", "checked"):
+                    continue
+                setattr(item, field, value)
             item.updated_at = datetime.now(UTC)
+            todolist.updated_at = datetime.now(UTC)
             await todolist.save()
-            await todolist.update({"$set": {"updated_at": datetime.now(UTC)}})
             return await List.find_one(
                 List.workspace_id == workspace_id, List.id == list_id
             )
