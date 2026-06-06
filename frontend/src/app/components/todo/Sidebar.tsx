@@ -15,6 +15,7 @@ import { useAuth } from "../../auth/AuthContext";
 export type TodoList = {
   id: string;
   name: string;
+  description?: string | null;
   itemCount: number;
   completedCount: number;
   accent: "orange" | "aqua" | "purple" | "blue" | "yellow" | "green";

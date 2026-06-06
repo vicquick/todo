@@ -292,6 +292,20 @@ function Dashboard({
     }
   };
 
+  const onUpdateDescription = async (description: string) => {
+    if (!selectedId || !wsId) return;
+    try {
+      const { list, items } = await api.updateList(wsId, selectedId, {
+        description: description || null,
+      });
+      setLists((ls) => ls.map((l) => (l.id === list.id ? list : l)));
+      setItemsByList((m) => ({ ...m, [list.id]: items }));
+      toast.success(description ? "Subtitle saved" : "Subtitle removed");
+    } catch (e: any) {
+      toast.error("Couldn't update subtitle", { description: e?.message });
+    }
+  };
+
   const requestDeleteList = (id: string) => {
     const l = lists.find((x) => x.id === id);
     if (!l) return;
@@ -638,6 +652,7 @@ function Dashboard({
                 onDelete={onDeleteItem}
                 onRenameItem={onRenameItem}
                 onRenameList={(name) => onRenameList(selectedList.id, name)}
+                onUpdateDescription={onUpdateDescription}
                 onPatchItem={onPatchItem}
                 onBulkSetChecked={onBulkSetChecked}
                 onBulkDelete={onBulkDelete}

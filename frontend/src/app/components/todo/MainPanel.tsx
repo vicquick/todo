@@ -4,6 +4,7 @@ import {
   Plus, Trash2, Loader2, Check, MoreHorizontal, Calendar,
   Filter as FilterIcon, Pencil, X, ChevronDown, ChevronRight,
   CheckCheck, CircleDashed, ListChecks, Eraser, Square, CheckSquare, Tag as TagIcon, Flag,
+  AlignLeft, Image as ImageIcon,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -50,6 +51,7 @@ type Props = {
   onDelete: (id: string) => void;
   onRenameItem: (id: string, label: string) => void;
   onRenameList: (name: string) => void;
+  onUpdateDescription: (description: string) => void;
   onPatchItem: (itemId: string, patch: ItemPatch) => void;
 
   onBulkSetChecked: (ids: string[], checked: boolean) => void;
@@ -71,7 +73,7 @@ const accentVar: Record<TodoList["accent"], string> = {
 
 export function MainPanel({
   list, items, tags, loading, error, adding,
-  onAdd, onToggle, onDelete, onRenameItem, onRenameList, onPatchItem,
+  onAdd, onToggle, onDelete, onRenameItem, onRenameList, onUpdateDescription, onPatchItem,
   onBulkSetChecked, onBulkDelete, onCheckAll, onUncheckAll, onDeleteCompleted,
   onRetry, onDeleteList, onCreateTag,
 }: Props) {
@@ -82,6 +84,9 @@ export function MainPanel({
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(list.name);
   const titleRef = useRef<HTMLInputElement>(null);
+  const [editingSubtitle, setEditingSubtitle] = useState(false);
+  const [subtitleDraft, setSubtitleDraft] = useState(list.description ?? "");
+  const subtitleRef = useRef<HTMLInputElement>(null);
 
   // new-item options
   const [newPriority, setNewPriority] = useState<Priority | undefined>(undefined);
@@ -97,9 +102,11 @@ export function MainPanel({
 
   useEffect(() => {
     setTitleDraft(list.name); setEditingTitle(false);
+    setSubtitleDraft(list.description ?? ""); setEditingSubtitle(false);
     setSelected(new Set()); setTagFilter([]);
-  }, [list.id, list.name]);
+  }, [list.id, list.name, list.description]);
   useEffect(() => { if (editingTitle) titleRef.current?.select(); }, [editingTitle]);
+  useEffect(() => { if (editingSubtitle) subtitleRef.current?.focus(); }, [editingSubtitle]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,6 +127,14 @@ export function MainPanel({
     if (!t || t === list.name) { setEditingTitle(false); setTitleDraft(list.name); return; }
     onRenameList(t);
     setEditingTitle(false);
+  };
+
+  const submitSubtitle = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const t = subtitleDraft.trim();
+    if (t === (list.description ?? "")) { setEditingSubtitle(false); return; }
+    onUpdateDescription(t);
+    setEditingSubtitle(false);
   };
 
   const filtered = useMemo(() => {
@@ -174,7 +189,6 @@ export function MainPanel({
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
               <span>Project</span>
-              <span className="font-mono normal-case tracking-normal">/ {list.id.slice(0, 6)}</span>
             </div>
 
             {editingTitle ? (
@@ -193,11 +207,32 @@ export function MainPanel({
             ) : (
               <button
                 className="group mt-1 inline-flex items-center gap-2 text-left rounded-md hover:bg-muted/40 -mx-1 px-1 transition-colors"
-                onClick={() => setEditingTitle(true)} title="Rename list">
+                onClick={() => setEditingTitle(true)} title="Rename project">
                 <h1 className="truncate">{list.name}</h1>
                 <Pencil className="size-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
               </button>
             )}
+
+            {editingSubtitle ? (
+              <form onSubmit={submitSubtitle} className="mt-1.5 flex items-center gap-2">
+                <Input ref={subtitleRef} value={subtitleDraft} onChange={(e) => setSubtitleDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Escape") { setEditingSubtitle(false); setSubtitleDraft(list.description ?? ""); } }}
+                  maxLength={200} placeholder="A short subtitle for this project…"
+                  className="h-9 text-sm px-2 bg-input-background border-border" />
+                <Button type="submit" size="icon" variant="ghost" className="size-8" aria-label="Save subtitle">
+                  <Check className="size-4" />
+                </Button>
+                <Button type="button" size="icon" variant="ghost" className="size-8" aria-label="Cancel"
+                  onClick={() => { setEditingSubtitle(false); setSubtitleDraft(list.description ?? ""); }}>
+                  <X className="size-4" />
+                </Button>
+              </form>
+            ) : list.description ? (
+              <p className="mt-1 text-sm text-muted-foreground italic truncate cursor-text"
+                onDoubleClick={() => setEditingSubtitle(true)} title="Double-click to edit subtitle">
+                {list.description}
+              </p>
+            ) : null}
 
             <div className="mt-1 text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
               <span>
@@ -216,20 +251,28 @@ export function MainPanel({
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="List actions" className="text-muted-foreground">
+                <Button variant="ghost" size="icon" aria-label="Project actions" className="text-muted-foreground">
                   <MoreHorizontal className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="font-mono text-[0.7rem] tracking-wider uppercase">Project</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => { setSubtitleDraft(list.description ?? ""); setEditingSubtitle(true); }}>
+                  <AlignLeft className="size-4" /> {list.description ? "Edit subtitle" : "Add subtitle"}
+                </DropdownMenuItem>
+                <DropdownMenuItem disabled title="Project pictures arrive with the media tranche">
+                  <ImageIcon className="size-4" /> Change picture… <span className="ml-auto font-mono text-[0.6rem] text-muted-foreground">soon</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuLabel className="font-mono text-[0.7rem] tracking-wider uppercase">Quick actions</DropdownMenuLabel>
-                <DropdownMenuItem onClick={onCheckAll}><CheckCheck className="size-4" /> Check all items</DropdownMenuItem>
-                <DropdownMenuItem onClick={onUncheckAll}><CircleDashed className="size-4" /> Uncheck all items</DropdownMenuItem>
+                <DropdownMenuItem onClick={onCheckAll}><CheckCheck className="size-4" /> Check all tasks</DropdownMenuItem>
+                <DropdownMenuItem onClick={onUncheckAll}><CircleDashed className="size-4" /> Uncheck all tasks</DropdownMenuItem>
                 <DropdownMenuItem onClick={selectAllVisible}><ListChecks className="size-4" /> Select all visible</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={onDeleteCompleted}><Eraser className="size-4" /> Delete completed</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={onDeleteList} className="text-destructive focus:text-destructive">
-                  <Trash2 className="size-4" /> Delete list
+                  <Trash2 className="size-4" /> Delete project
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

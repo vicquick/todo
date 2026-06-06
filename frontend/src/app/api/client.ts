@@ -107,7 +107,9 @@ export type ServerItem = {
 export type ServerList = {
   id: string;
   name: string;
+  description?: string | null;
   items?: ServerItem[];
+  item_count?: number;
   created_at?: string;
   updated_at?: string;
 };
@@ -146,7 +148,8 @@ export function toTodoList(l: ServerList): TodoList {
   return {
     id: l.id,
     name: l.name,
-    itemCount: items.length,
+    description: l.description ?? null,
+    itemCount: l.items ? items.length : (l.item_count ?? 0),
     completedCount: items.filter((x) => x.checked).length,
     accent: accentFor(l.id),
   };
@@ -340,11 +343,19 @@ export async function renameList(
   listId: string,
   name: string,
 ): Promise<{ list: TodoList; items: TodoItem[] }> {
+  return updateList(workspaceId, listId, { name });
+}
+
+export async function updateList(
+  workspaceId: string,
+  listId: string,
+  patch: { name?: string; description?: string | null },
+): Promise<{ list: TodoList; items: TodoItem[] }> {
   const data = await request<ServerList>(
     `/api/workspaces/${workspaceId}/lists/${listId}`,
     {
       method: "PATCH",
-      body: JSON.stringify({ name }),
+      body: JSON.stringify(patch),
     },
   );
   return { list: toTodoList(data), items: (data.items ?? []).map(toTodoItem) };

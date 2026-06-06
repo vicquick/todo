@@ -56,6 +56,7 @@ class List(Base, TimestampMixin):
         ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
     )
     name: Mapped[str] = mapped_column(String(100))
+    description: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
     items: Mapped[list["Item"]] = relationship(
         cascade="all, delete-orphan",

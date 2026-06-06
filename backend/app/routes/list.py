@@ -66,6 +66,7 @@ async def fetch_lists(
         select(
             ListModel.id,
             ListModel.name,
+            ListModel.description,
             func.count(Item.id).label("item_count"),
             ListModel.created_at,
             ListModel.updated_at,
@@ -80,6 +81,7 @@ async def fetch_lists(
         ListSummary(
             id=row.id,
             name=row.name,
+            description=row.description,
             item_count=row.item_count,
             created_at=row.created_at,
             updated_at=row.updated_at,
@@ -138,8 +140,11 @@ async def update_lists(
 ):
     await get_owned_workspace(session, workspace_id, current_user.id)
     todolist = await get_list_in_workspace(session, workspace_id, list_id)
-    if list_data.name is not None:
-        todolist.name = list_data.name
+    changes = list_data.model_dump(exclude_unset=True)
+    if changes.get("name") is not None:
+        todolist.name = changes["name"]
+    if "description" in changes:
+        todolist.description = changes["description"]
     todolist.updated_at = utcnow()
     await session.commit()
     return todolist
