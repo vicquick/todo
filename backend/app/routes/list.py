@@ -38,10 +38,12 @@ async def get_owned_workspace(
 async def get_list_in_workspace(
     session, workspace_id: UUID, list_id: UUID
 ) -> ListModel:
+    # populate_existing: refresh identity-map instances (and their selectin-loaded
+    # items) so responses after a commit never serve stale collections
     todolist = await session.scalar(
-        select(ListModel).where(
-            ListModel.workspace_id == workspace_id, ListModel.id == list_id
-        )
+        select(ListModel)
+        .where(ListModel.workspace_id == workspace_id, ListModel.id == list_id)
+        .execution_options(populate_existing=True)
     )
     if not todolist:
         raise HTTPException(
