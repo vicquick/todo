@@ -75,7 +75,7 @@ class ApiKey(Document):
     name: str
     key_hash: str
     prefix: str
-    is_active: bool = True
+    last_used_at: datetime | None = None
     created_at: datetime = datetime.now(UTC)
     expires_at: datetime | None
 

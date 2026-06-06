@@ -2,13 +2,13 @@ from pydantic import BaseModel, Field
 from beanie import PydanticObjectId
 from pydantic import EmailStr
 from datetime import datetime
-from app.auth import settings
 
 
 class ApiKeyBase(BaseModel):
     id: PydanticObjectId
     name: str
     prefix: str
+    last_used_at: datetime | None = None
     created_at: datetime
     expires_at: datetime | None
 

@@ -10,6 +10,7 @@ from fastapi.security import OAuth2PasswordBearer
 from app.config import settings
 from app.models import User
 from app.schemas.user import UserPrivateResponse
+from app.models import ApiKey
 
 password_hash = PasswordHash.recommended()
 oauth2_scheme = OAuth2PasswordBearer("/api/auth/token")
@@ -29,12 +30,12 @@ def generate_secure_token(type: str = "reset") -> str:
     return secrets.token_urlsafe(32)
 
 
-def hash_secure_token(token: str) -> str:
-    return password_hash.hash(token)
-
-
 def hash_reset_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def hash_api_key(key: str) -> str:
+    return hashlib.sha256(key.encode()).hexdigest()
 
 
 def create_token(data: dict, type: str, expires_delta: timedelta | None = None) -> str:
@@ -74,9 +75,30 @@ def verify_token(token: str, type: str = "access") -> str | None:
         return payload.get("sub")
 
 
-async def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
-):
+async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+    if token.startswith("sk_"):
+        api_key = await ApiKey.find_one(ApiKey.key_hash == hash_api_key(token))
+        if not api_key:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="invalid or expired api key",
+            )
+        if api_key.expires_at is not None and api_key.expires_at < datetime.now(UTC):
+            await api_key.delete()
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="invalid or expired api key",
+            )
+
+        user = await User.find_one(User.id == api_key.user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="invalid or expired api key",
+            )
+        await api_key.update({"$set": {"last_used_at": datetime.now(UTC)}})
+        return user
+
     user_id = verify_token(token)
     if user_id is None:
         raise HTTPException(

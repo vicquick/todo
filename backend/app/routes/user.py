@@ -17,7 +17,7 @@ from app.auth import (
     currentUser,
     verify_password,
     generate_secure_token,
-    hash_secure_token,
+    hash_api_key,
 )
 from datetime import datetime, UTC, timedelta
 
@@ -118,7 +118,7 @@ async def fetch_api_keys(current_user: currentUser):
 
 
 @router.post(
-    "/api-keys", response_model=ApiKeyResponse, status_code=status.HTTP_201_CREATED
+    "/api-keys", response_model=ApiKeyFullResponse, status_code=status.HTTP_201_CREATED
 )
 async def create_api_key(input_data: ApiKeyCreate, current_user: currentUser):
     api_key_count = await ApiKey.find(ApiKey.user_id == current_user.id).count()
@@ -143,7 +143,7 @@ async def create_api_key(input_data: ApiKeyCreate, current_user: currentUser):
     new_api_key = ApiKey(
         user_id=current_user.id,
         name=input_data.name,
-        key_hash=hash_secure_token(api_key),
+        key_hash=hash_api_key(api_key),
         prefix=api_key[:8],
         expires_at=expire,
     )
