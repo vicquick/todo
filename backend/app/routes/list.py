@@ -14,7 +14,7 @@ from app.schemas.list import (
 )
 from app.models import Item, List as ListModel, ListImage, Workspace, utcnow
 from app.database import SessionDep
-from app.utils import normalize_tags
+from app.utils import advance_deadline, normalize_tags
 from app.auth import currentUser
 
 router = APIRouter()
@@ -294,6 +294,7 @@ async def create_list_item(
         parent_id=item_data.parent_id,
         label=item_data.label,
         checked=item_data.checked,
+        recurrence=item_data.recurrence,
         priority=item_data.priority,
         tags=normalize_tags(item_data.tags),
         description=item_data.description,
@@ -331,10 +332,37 @@ async def update_item_state(
     changes = update.model_dump(exclude={"item_id"}, exclude_unset=True)
     if "tags" in changes:
         changes["tags"] = normalize_tags(changes["tags"])
+    was_checked = item.checked
     for field, value in changes.items():
-        if value is None and field in ("label", "checked"):
+        if value is None and field in ("label", "checked", "status", "position"):
             continue
         setattr(item, field, value)
+    # keep kanban status and checked in sync, whichever side moved
+    if changes.get("status") is not None and "checked" not in changes:
+        item.checked = item.status == "done"
+    elif changes.get("checked") is not None and "status" not in changes:
+        if item.checked:
+            item.status = "done"
+        elif item.status == "done":
+            item.status = "todo"
+    # recurring: completing a task with a rule spawns the next occurrence
+    if not was_checked and item.checked and item.recurrence:
+        base = item.deadline or utcnow()
+        session.add(
+            Item(
+                list_id=todolist.id,
+                parent_id=item.parent_id,
+                label=item.label,
+                checked=False,
+                status="todo",
+                recurrence=item.recurrence,
+                priority=item.priority,
+                tags=list(item.tags or []),
+                description=item.description,
+                deadline=advance_deadline(base, item.recurrence),
+            )
+        )
+        item.recurrence = None
     item.updated_at = utcnow()
     todolist.updated_at = utcnow()
     await session.commit()

@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { DndProvider, useDrag, useDrop } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
 import {
   Plus, Trash2, Loader2, Check, MoreHorizontal, Calendar,
   Filter as FilterIcon, Pencil, X, ChevronDown, ChevronRight,
   CheckCheck, CircleDashed, ListChecks, Eraser, Square, CheckSquare, Tag as TagIcon, Flag,
-  AlignLeft, Image as ImageIcon, CornerDownRight,
+  AlignLeft, Image as ImageIcon, CornerDownRight, Repeat, GripVertical,
+  List as ListViewIcon, Columns3 as BoardViewIcon,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -14,15 +17,21 @@ import {
   DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel,
 } from "../ui/dropdown-menu";
 import { TodoList } from "./Sidebar";
+import { Board, BoardStatus } from "./Board";
 import { LoadingPanel, EmptyItems, ErrorPanel } from "./States";
 import { Priority, PRIORITY_META, Tag, tagColorVar, tagFromName } from "../../api/mock";
 import { PriorityChip, PrioritySelect, TagChip, TagSelect } from "./Chips";
+
+export type Recurrence = "daily" | "weekly" | "monthly" | "monthly_last";
 
 export type TodoItem = {
   id: string;
   parentId?: string | null;
   label: string;
   checked: boolean;
+  status?: "todo" | "doing" | "done";
+  position?: number;
+  recurrence?: Recurrence | null;
   priority?: Priority | null;
   tags?: string[];
   description?: string | null;
@@ -33,10 +42,20 @@ export type TodoItem = {
 export type ItemPatch = {
   label?: string;
   checked?: boolean;
+  status?: string;
+  position?: number;
+  recurrence?: Recurrence | null;
   priority?: Priority | null;
   tags?: string[];
   description?: string | null;
   deadline?: string | null;
+};
+
+const RECURRENCE_META: Record<Recurrence, string> = {
+  daily: "Daily",
+  weekly: "Weekly",
+  monthly: "Monthly",
+  monthly_last: "Last day of month",
 };
 
 type Filter = "all" | "active" | "done";
@@ -199,17 +218,41 @@ export function MainPanel({
         return tagFilter.every((name) => t.includes(name));
       });
     }
-    // Sort: unchecked first, then by priority descending (High=3 → Med=2 → Low=1 → none)
+    // Sort: unchecked first, then manual order (position)
     arr = [...arr].sort((a, b) => {
       if (a.checked !== b.checked) return a.checked ? 1 : -1;
-      const pa = a.priority ?? 0;
-      const pb = b.priority ?? 0;
-      return pb - pa;
+      return (a.position ?? 0) - (b.position ?? 0);
     });
     return arr;
   }, [items, filter, tagFilter]);
 
   const [subtaskFor, setSubtaskFor] = useState<string | null>(null);
+
+  // view: list | board, remembered per project
+  const [view, setView] = useState<"list" | "board">("list");
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(`cairn.view.${list.id}`);
+      setView(v === "board" ? "board" : "list");
+    } catch { setView("list"); }
+  }, [list.id]);
+  const switchView = (v: "list" | "board") => {
+    setView(v);
+    try { localStorage.setItem(`cairn.view.${list.id}`, v); } catch {}
+  };
+
+  const reorderable = view === "list" && filter === "all" && tagFilter.length === 0;
+  const roots = useMemo(() => items.filter((i) => !i.parentId), [items]);
+  const onReorder = (draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return;
+    const ordered = [...roots].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    const targetIdx = ordered.findIndex((i) => i.id === targetId);
+    if (targetIdx < 0) return;
+    const prev = ordered.filter((i) => i.id !== draggedId)[ordered.filter((i) => i.id !== draggedId).findIndex((i) => i.id === targetId) - 1];
+    const target = ordered[targetIdx];
+    const newPos = prev ? ((prev.position ?? 0) + (target.position ?? 0)) / 2 : (target.position ?? 0) - 1;
+    onPatchItem(draggedId, { position: newPos });
+  };
 
   const completed = items.filter((i) => i.checked).length;
   const progress = items.length === 0 ? 0 : Math.round((completed / items.length) * 100);
@@ -231,6 +274,7 @@ export function MainPanel({
   const anySelected = selectedCount > 0;
 
   return (
+    <DndProvider backend={HTML5Backend}>
     <section className="h-full overflow-y-auto relative">
       <div className="max-w-3xl mx-auto px-6 md:px-10 py-8 md:py-12 pb-32">
         {/* Header */}
@@ -312,6 +356,18 @@ export function MainPanel({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <div className="flex items-center rounded-lg border border-border bg-card p-0.5" role="tablist" aria-label="View">
+              <button role="tab" aria-selected={view === "list"} onClick={() => switchView("list")}
+                title="List view"
+                className={`rounded-md p-1.5 transition-colors ${view === "list" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                <ListViewIcon className="size-4" />
+              </button>
+              <button role="tab" aria-selected={view === "board"} onClick={() => switchView("board")}
+                title="Board view"
+                className={`rounded-md p-1.5 transition-colors ${view === "board" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                <BoardViewIcon className="size-4" />
+              </button>
+            </div>
             <Button variant="ghost" size="sm" onClick={() => setEditingTitle(true)} className="text-muted-foreground hover:text-foreground gap-1.5">
               <Pencil className="size-4" /> Rename
             </Button>
@@ -417,7 +473,8 @@ export function MainPanel({
           {invalid && <p className="mt-2 text-xs text-destructive">Task can&apos;t be empty.</p>}
         </form>
 
-        {/* Filters */}
+        {/* Filters (list view only — the board organizes by status itself) */}
+        {view === "list" && (
         <div className="mt-6 flex items-center gap-1 text-sm flex-wrap">
           <FilterIcon className="size-3.5 text-muted-foreground mr-1.5" />
           {(["all", "active", "done"] as Filter[]).map((f) => (
@@ -479,6 +536,7 @@ export function MainPanel({
             </button>
           )}
         </div>
+        )}
 
         {/* Items */}
         <div className="mt-3">
@@ -486,6 +544,14 @@ export function MainPanel({
             <LoadingPanel />
           ) : error ? (
             <ErrorPanel message={error} onRetry={onRetry} />
+          ) : view === "board" ? (
+            <Board
+              items={roots}
+              childrenByParent={childrenByParent}
+              accent={accentVar[list.accent]}
+              onMove={(id, status: BoardStatus, position) => onPatchItem(id, { status, position })}
+              onToggle={onToggle}
+            />
           ) : items.length === 0 ? (
             <EmptyItems listName={list.name} />
           ) : filtered.length === 0 ? (
@@ -513,6 +579,8 @@ export function MainPanel({
                       onPatch={(patch) => onPatchItem(it.id, patch)}
                       onCreateTag={onCreateTag}
                       onAddSubtask={() => setSubtaskFor(subtaskFor === it.id ? null : it.id)}
+                      reorderable={reorderable}
+                      onReorder={onReorder}
                     />,
                     ...kids.map((kid) => (
                       <ItemRow
@@ -579,6 +647,7 @@ export function MainPanel({
         )}
       </AnimatePresence>
     </section>
+    </DndProvider>
   );
 }
 
@@ -637,6 +706,7 @@ function deadlineMeta(item: TodoItem): { text: string; overdue: boolean } | null
 function ItemRow({
   item, tags, accent, isSelected, anySelected, isChild, subtaskStats,
   onSelectToggle, onToggle, onDelete, onRename, onPatch, onCreateTag, onAddSubtask,
+  reorderable, onReorder,
 }: {
   item: TodoItem;
   tags: Tag[];
@@ -652,7 +722,27 @@ function ItemRow({
   onPatch: (patch: ItemPatch) => void;
   onCreateTag?: (name: string) => Promise<any>;
   onAddSubtask?: () => void;
+  reorderable?: boolean;
+  onReorder?: (draggedId: string, targetId: string) => void;
 }) {
+  const [{ isDragging }, dragRef, previewRef] = useDrag(
+    () => ({
+      type: "list-row",
+      item: { id: item.id },
+      canDrag: !!reorderable && !isChild,
+      collect: (m) => ({ isDragging: m.isDragging() }),
+    }),
+    [item.id, reorderable, isChild],
+  );
+  const [{ isOverRow }, dropRef] = useDrop(
+    () => ({
+      accept: "list-row",
+      canDrop: () => !!reorderable && !isChild,
+      drop: (d: { id: string }) => onReorder?.(d.id, item.id),
+      collect: (m) => ({ isOverRow: m.isOver() && m.canDrop() }),
+    }),
+    [item.id, reorderable, isChild, onReorder],
+  );
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.label);
   const [expanded, setExpanded] = useState(false);
@@ -684,12 +774,26 @@ function ItemRow({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: 12, height: 0, marginTop: 0, paddingTop: 0, paddingBottom: 0 }}
       transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+      ref={(node) => { dropRef(node as any); previewRef(node as any); }}
       className={`group rounded-xl border bg-card shadow-soft-sm hover:shadow-soft-md transition-all ${
         isSelected ? "border-ring/60 ring-1 ring-ring/30" : "border-border"
-      } ${isChild ? "ml-9 border-l-2" : ""}`}
-      style={isChild ? { borderLeftColor: `color-mix(in oklab, ${accent} 45%, transparent)` } : undefined}
+      } ${isChild ? "ml-9 border-l-2" : ""} ${isDragging ? "opacity-40" : ""}`}
+      style={{
+        ...(isChild ? { borderLeftColor: `color-mix(in oklab, ${accent} 45%, transparent)` } : {}),
+        ...(isOverRow ? { boxShadow: `0 -2px 0 0 ${accent}` } : {}),
+      }}
     >
       <div className="px-4 py-3 flex items-center gap-3">
+        {reorderable && !isChild && (
+          <button
+            ref={dragRef as any}
+            type="button"
+            aria-label="Drag to reorder"
+            className="cursor-grab active:cursor-grabbing -ml-1.5 -mr-1 p-0.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+          >
+            <GripVertical className="size-4" />
+          </button>
+        )}
         {/* selection checkbox */}
         <button
           type="button"
@@ -777,6 +881,12 @@ function ItemRow({
               </span>
             ) : null;
           })()}
+          {item.recurrence && (
+            <span className="inline-flex items-center rounded-full border border-border px-1.5 py-0.5 text-muted-foreground"
+              title={`Repeats ${RECURRENCE_META[item.recurrence].toLowerCase()}`}>
+              <Repeat className="size-3" />
+            </span>
+          )}
           {item.priority && <PriorityChip priority={item.priority} />}
           {itemTags.slice(0, 3).map((t) => <TagChip key={t.id} tag={t} compact />)}
           {itemTags.length > 3 && (
@@ -883,6 +993,26 @@ function ItemRow({
                     onClick={() => onPatch({ deadline: null })}>
                     <X className="size-3.5" /> Clear
                   </Button>
+                )}
+              </div>
+
+              {/* recurrence */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="label">Repeats</span>
+                <select
+                  value={item.recurrence ?? ""}
+                  onChange={(e) => onPatch({ recurrence: (e.target.value || null) as Recurrence | null })}
+                  className="h-8 rounded-md border border-border bg-input-background px-2 text-sm text-foreground"
+                >
+                  <option value="">Never</option>
+                  {(Object.entries(RECURRENCE_META) as [Recurrence, string][]).map(([k, label]) => (
+                    <option key={k} value={k}>{label}</option>
+                  ))}
+                </select>
+                {item.recurrence && (
+                  <span className="text-xs text-muted-foreground">
+                    Completing this task creates the next occurrence.
+                  </span>
                 )}
               </div>
 

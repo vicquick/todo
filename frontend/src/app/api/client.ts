@@ -100,6 +100,9 @@ export type ServerItem = {
   parent_id?: string | null;
   label: string;
   checked: boolean;
+  status?: string;
+  position?: number;
+  recurrence?: string | null;
   priority?: number | null; // 1=Low, 2=Medium, 3=High
   tags?: string[];
   description?: string | null;
@@ -142,6 +145,9 @@ export function toTodoItem(i: ServerItem): TodoItem {
     parentId: i.parent_id ?? null,
     label: i.label,
     checked: !!i.checked,
+    status: (i.status ?? (i.checked ? "done" : "todo")) as TodoItem["status"],
+    position: i.position ?? 0,
+    recurrence: (i.recurrence ?? null) as TodoItem["recurrence"],
     priority: (i.priority ?? null) as TodoItem["priority"],
     tags: i.tags ?? [],
     description: i.description ?? null,
@@ -426,12 +432,16 @@ export type ItemCreatePayload = {
   tags?: string[];
   description?: string | null;
   parent_id?: string | null;
+  recurrence?: string | null;
 };
 
 export type ItemPatchPayload = {
   item_id: string;
   label?: string;
   checked?: boolean;
+  status?: string;
+  position?: number;
+  recurrence?: string | null;
   priority?: number | null;
   tags?: string[];
   description?: string | null;
@@ -448,6 +458,7 @@ export async function createItem(
   if (payload.tags && payload.tags.length) body.tags = payload.tags;
   if (payload.description) body.description = payload.description;
   if (payload.parent_id) body.parent_id = payload.parent_id;
+  if (payload.recurrence) body.recurrence = payload.recurrence;
   const data = await request<ServerList>(
     `/api/workspaces/${workspaceId}/lists/${listId}/items`,
     {

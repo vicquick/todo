@@ -4,6 +4,7 @@ from datetime import datetime, UTC
 from sqlalchemy import (
     Boolean,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     LargeBinary,
@@ -70,7 +71,7 @@ class List(Base, TimestampMixin):
     items: Mapped[list["Item"]] = relationship(
         cascade="all, delete-orphan",
         passive_deletes=True,
-        order_by="Item.created_at",
+        order_by="Item.position",
         lazy="selectin",
     )
 
@@ -89,6 +90,14 @@ class Item(Base, TimestampMixin):
     )
     label: Mapped[str] = mapped_column(String(250))
     checked: Mapped[bool] = mapped_column(Boolean, default=False)
+    # kanban column; kept in sync with `checked` (done ⇔ checked)
+    status: Mapped[str] = mapped_column(String(16), default="todo")
+    # manual sort order — fractional indexing, seeded from creation time
+    position: Mapped[float] = mapped_column(
+        Float, default=lambda: datetime.now(UTC).timestamp()
+    )
+    # daily | weekly | monthly | monthly_last — next occurrence spawns on completion
+    recurrence: Mapped[str | None] = mapped_column(String(32), nullable=True)
     priority: Mapped[int | None] = mapped_column(Integer, nullable=True)
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

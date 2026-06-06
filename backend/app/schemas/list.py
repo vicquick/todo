@@ -1,7 +1,11 @@
 from __future__ import annotations
+from typing import Literal
 from uuid import UUID
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from datetime import datetime
+
+Recurrence = Literal["daily", "weekly", "monthly", "monthly_last"]
+Status = Literal["todo", "doing", "done"]
 
 
 class ListBase(BaseModel):
@@ -51,12 +55,16 @@ class ItemCreate(BaseModel):
     description: str | None = Field(default=None, min_length=0, max_length=10000)
     deadline: datetime | None = Field(default=None)
     parent_id: UUID | None = Field(default=None)
+    recurrence: Recurrence | None = Field(default=None)
 
 
 class ItemUpdatePartial(BaseModel):
     item_id: UUID
     label: str | None = Field(default=None, min_length=1, max_length=250)
     checked: bool | None = Field(default=None)
+    status: Status | None = Field(default=None)
+    position: float | None = Field(default=None)
+    recurrence: Recurrence | None = Field(default=None)
     priority: int | None = Field(default=None, ge=1, le=3)
     tags: list[str] | None = Field(default=None)
     description: str | None = Field(default=None, min_length=0, max_length=10000)
@@ -71,6 +79,9 @@ class ItemResponse(BaseModel):
     parent_id: UUID | None = None
     label: str
     checked: bool
+    status: str = "todo"
+    position: float = 0
+    recurrence: str | None = None
     priority: int | None = None
     tags: list[str] = []
     description: str | None = None
