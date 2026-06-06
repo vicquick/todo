@@ -36,6 +36,7 @@ import { AIProvider } from "./state/AIContext";
 import { AIHistoryPage } from "./components/ai/AIHistoryPage";
 import { MCPExplorerPage } from "./components/ai/MCPExplorerPage";
 import { FloatingChat } from "./components/ai/FloatingChat";
+import { QuickNotes } from "./components/notes/QuickNotes";
 import { Button } from "./components/ui/button";
 import { FolderPlus, Loader2 } from "lucide-react";
 import { Priority } from "./api/mock";
@@ -178,6 +179,7 @@ function Dashboard({
   const navigate = useNavigate();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const [lists, setLists] = useState<TodoList[]>([]);
   const [itemsByList, setItemsByList] = useState<Record<string, TodoItem[]>>(
     {},
@@ -205,7 +207,7 @@ function Dashboard({
       setItemsByList(itemsByList);
     } catch (e: any) {
       if (e?.status === 401) return;
-      setLoadError(e?.message ?? "Failed to load lists");
+      setLoadError(e?.message ?? "Failed to load projects");
     } finally {
       setInitialLoading(false);
     }
@@ -272,7 +274,7 @@ function Dashboard({
       setSelectedId(list.id);
       toast.success(`Created "${name}"`);
     } catch (e: any) {
-      toast.error("Couldn't create list", { description: e?.message });
+      toast.error("Couldn't create project", { description: e?.message });
     } finally {
       setCreatingList(false);
     }
@@ -284,9 +286,9 @@ function Dashboard({
       const { list, items } = await api.renameList(wsId, id, name);
       setLists((ls) => ls.map((l) => (l.id === list.id ? list : l)));
       setItemsByList((m) => ({ ...m, [list.id]: items }));
-      toast.success("List renamed");
+      toast.success("Project renamed");
     } catch (e: any) {
-      toast.error("Couldn't rename list", { description: e?.message });
+      toast.error("Couldn't rename project", { description: e?.message });
     }
   };
 
@@ -322,9 +324,9 @@ function Dashboard({
             .catch(() => {});
         }
       }
-      toast(`Deleted "${name}"`, { description: "List removed." });
+      toast(`Deleted "${name}"`, { description: "Project removed." });
     } catch (e: any) {
-      toast.error("Couldn't delete list", { description: e?.message });
+      toast.error("Couldn't delete project", { description: e?.message });
     }
   };
 
@@ -554,6 +556,8 @@ function Dashboard({
         dark={dark}
         onToggleDark={onToggleDark}
         onMenuToggle={() => setSidebarOpen((o) => !o)}
+        notesOpen={notesOpen}
+        onNotesToggle={() => setNotesOpen((o) => !o)}
       />
 
       <div className="flex-1 relative min-h-0">
@@ -603,7 +607,7 @@ function Dashboard({
             ) : showError ? (
               <div className="max-w-3xl mx-auto px-6 md:px-10 py-10">
                 <ErrorPanel
-                  title="We couldn't load your lists"
+                  title="We couldn&apos;t load your projects"
                   message={
                     loadError ??
                     "The backend responded with an unexpected error."
@@ -650,6 +654,23 @@ function Dashboard({
       </div>
 
       <FloatingChat />
+
+      <QuickNotes
+        open={notesOpen}
+        onOpenChange={setNotesOpen}
+        wsId={wsId}
+        projects={lists}
+        onTasksAdded={(projectId) => {
+          if (!wsId) return;
+          api
+            .fetchListDetails(wsId, projectId)
+            .then(({ list, items }) => {
+              setLists((ls) => ls.map((l) => (l.id === list.id ? list : l)));
+              setItemsByList((m) => ({ ...m, [list.id]: items }));
+            })
+            .catch(() => {});
+        }}
+      />
 
       <AlertDialog
         open={!!pendingDelete}
@@ -698,7 +719,7 @@ function EmptyWorkspaceCTA({
         </div>
         <h2 className="mt-5">No workspace yet.</h2>
         <p className="mt-2 text-muted-foreground">
-          Workspaces keep your lists organized. Create one to get started.
+          Workspaces keep your projects organized. Create one to get started.
         </p>
         <Button onClick={onCreate} disabled={loading} className="mt-5 gap-2">
           {loading ? (

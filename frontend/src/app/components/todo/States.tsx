@@ -26,11 +26,11 @@ export function NoListsEmpty({ onFocusCreate }: { onFocusCreate?: () => void }) 
         </div>
         <h2 className="mt-5">A blank slate, ready when you are.</h2>
         <p className="mt-2 text-muted-foreground">
-          You don&apos;t have any todo lists yet. Create one to start collecting tasks — groceries,
+          You don&apos;t have any projects yet. Create one to start collecting tasks — groceries,
           a launch plan, weekend errands, anything.
         </p>
         <Button onClick={onFocusCreate} className="mt-5 gap-2">
-          <ListPlus className="size-4" /> Create your first list
+          <ListPlus className="size-4" /> Create your first project
         </Button>
         <p className="mt-3 text-xs text-muted-foreground font-mono">
           ↳ tip: press <kbd className="px-1.5 py-0.5 rounded bg-muted border border-border-strong">N</kbd> anytime

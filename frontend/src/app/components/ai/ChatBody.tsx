@@ -138,7 +138,7 @@ export function ChatBody() {
       toast.success(`Saved "${payload.title}"`, { description: `${payload.items.length} tasks added.` });
       setPendingPayload(null);
     } catch (err: any) {
-      toast.error("Couldn't save list", { description: err?.message });
+      toast.error("Couldn't save project", { description: err?.message });
     } finally {
       setSavingList(false);
     }
@@ -199,7 +199,7 @@ export function ChatBody() {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder={mode === "list"
-              ? "Describe a list to generate…"
+              ? "Describe a project to generate…"
               : "Ask anything…"}
             className="min-h-[40px] max-h-32 border-0 shadow-none focus-visible:ring-0 resize-none bg-transparent text-sm"
             onKeyDown={(e) => {

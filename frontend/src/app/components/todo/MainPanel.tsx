@@ -173,7 +173,7 @@ export function MainPanel({
           />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
-              <span>List</span>
+              <span>Project</span>
               <span className="font-mono normal-case tracking-normal">/ {list.id.slice(0, 6)}</span>
             </div>
 

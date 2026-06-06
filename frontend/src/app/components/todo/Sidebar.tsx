@@ -82,7 +82,7 @@ export function Sidebar({ lists, selectedId, onSelect, onDelete, onCreate, onRen
       </div>
 
       <form onSubmit={submit} className="px-4 pb-3">
-        <label htmlFor="new-list" className="sr-only">New list name</label>
+        <label htmlFor="new-list" className="sr-only">New project name</label>
         <div
           className={`group flex items-center gap-2 rounded-lg bg-input-background border transition-colors ${
             invalid ? "border-destructive/60" : "border-transparent focus-within:border-ring/60"
@@ -90,7 +90,7 @@ export function Sidebar({ lists, selectedId, onSelect, onDelete, onCreate, onRen
         >
           <Input
             id="new-list"
-            placeholder={disabled ? "Create a workspace first…" : "New list…"}
+            placeholder={disabled ? "Create a workspace first…" : "New project…"}
             value={name}
             onChange={(e) => { setName(e.target.value); if (touched) setTouched(false); }}
             disabled={creating || disabled}
@@ -124,7 +124,7 @@ export function Sidebar({ lists, selectedId, onSelect, onDelete, onCreate, onRen
       )}
 
       <div className="px-5 pt-2 pb-1.5 flex items-center justify-between">
-        <span className="text-[0.65rem] tracking-[0.2em] uppercase text-muted-foreground">Your Lists</span>
+        <span className="text-[0.65rem] tracking-[0.2em] uppercase text-muted-foreground">Projects</span>
         <span className="font-mono text-[0.7rem] text-muted-foreground">{lists.length}</span>
       </div>
 
@@ -134,15 +134,15 @@ export function Sidebar({ lists, selectedId, onSelect, onDelete, onCreate, onRen
         ) : error ? (
           <div className="m-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
             <div className="flex items-center gap-1.5 text-destructive font-medium">
-              <AlertCircle className="size-4" /> Couldn&apos;t load lists
+              <AlertCircle className="size-4" /> Couldn&apos;t load projects
             </div>
             <p className="mt-1 text-xs text-muted-foreground">{error}</p>
           </div>
         ) : lists.length === 0 ? (
           <div className="m-3 rounded-lg border border-dashed border-sidebar-border p-4 text-center">
             <ListChecks className="mx-auto size-5 text-muted-foreground" />
-            <p className="mt-2 text-sm">No lists yet</p>
-            <p className="text-xs text-muted-foreground">Create your first list above.</p>
+            <p className="mt-2 text-sm">No projects yet</p>
+            <p className="text-xs text-muted-foreground">Create your first project above.</p>
           </div>
         ) : (
           <ul className="space-y-0.5">

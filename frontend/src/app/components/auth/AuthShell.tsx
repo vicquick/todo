@@ -1,5 +1,6 @@
 import { Github } from "lucide-react";
 import { Logo } from "../todo/Logo";
+import { CairnMark } from "../brand/CairnMark";
 
 export function AuthShell({
   title, subtitle, children, footer,
@@ -47,10 +48,7 @@ export function AuthShell({
             &ldquo;Small stones, stacked carefully, find their way to the summit.&rdquo;
           </blockquote>
           <div className="mt-5 flex items-center gap-3">
-            <div className="size-9 rounded-full grid place-items-center text-primary-foreground"
-              style={{ background: "var(--gb-aqua)" }}>
-              <span className="font-display">C</span>
-            </div>
+            <CairnMark className="size-9" />
             <div>
               <div className="text-sm">Cairn — a calm place for tasks</div>
               <div className="text-xs text-muted-foreground font-mono">FastAPI · React · PostgreSQL</div>

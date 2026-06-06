@@ -307,7 +307,7 @@ function SecurityTab() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete your account?</AlertDialogTitle>
             <AlertDialogDescription>
-              All of your lists and tasks will be permanently deleted. This action can&apos;t be undone.
+              All of your projects and tasks will be permanently deleted. This action can&apos;t be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -349,7 +349,7 @@ function AboutTab() {
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground leading-relaxed">
             Cairn is an open-source task management app built with FastAPI, React, and PostgreSQL.
-            It features workspace-scoped lists and items, priority tagging, AI-powered task assistance, and a
+            It features workspace-scoped projects and tasks, priority tagging, AI-powered task assistance, and a
             focused Gruvbox aesthetic designed for long work sessions.
           </p>
           <div className="flex flex-wrap gap-2 pt-1">
