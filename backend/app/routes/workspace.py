@@ -8,7 +8,12 @@ from datetime import datetime, UTC
 router = APIRouter()
 
 
-@router.get("", response_model=list[WorkspaceResponse], status_code=status.HTTP_200_OK)
+@router.get(
+    "",
+    response_model=list[WorkspaceResponse],
+    status_code=status.HTTP_200_OK,
+    operation_id="list_workspaces",
+)
 async def fetch_workspaces(current_user: currentUser):
     return (
         await Workspace.find(Workspace.user_id == current_user.id)
@@ -17,7 +22,12 @@ async def fetch_workspaces(current_user: currentUser):
     )
 
 
-@router.post("", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=WorkspaceResponse,
+    status_code=status.HTTP_201_CREATED,
+    operation_id="create_workspace",
+)
 async def create_workspace(current_user: currentUser, workspace_data: WorkspaceCreate):
     existing_workspace = await Workspace.find_one(
         Workspace.name == workspace_data.name,
@@ -33,7 +43,10 @@ async def create_workspace(current_user: currentUser, workspace_data: WorkspaceC
 
 
 @router.get(
-    "/{workspace_id}", response_model=WorkspaceResponse, status_code=status.HTTP_200_OK
+    "/{workspace_id}",
+    response_model=WorkspaceResponse,
+    status_code=status.HTTP_200_OK,
+    operation_id="get_workspace",
 )
 async def fetch_workspace_details(
     workspace_id: PydanticObjectId, current_user: currentUser
@@ -49,7 +62,10 @@ async def fetch_workspace_details(
 
 
 @router.patch(
-    "/{workspace_id}", response_model=WorkspaceResponse, status_code=status.HTTP_200_OK
+    "/{workspace_id}",
+    response_model=WorkspaceResponse,
+    status_code=status.HTTP_200_OK,
+    operation_id="update_workspace",
 )
 async def update_workspace_partial(
     workspace_id: PydanticObjectId, update: WorkspaceUpdate, current_user: currentUser
@@ -80,7 +96,11 @@ async def update_workspace_partial(
     return await Workspace.get(workspace_id)
 
 
-@router.delete("/{workspace_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{workspace_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    operation_id="delete_workspace",
+)
 async def delete_workspace(workspace_id: PydanticObjectId, current_user: currentUser):
     workspace = await Workspace.find_one(
         Workspace.id == workspace_id, Workspace.user_id == current_user.id

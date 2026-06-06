@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi_mcp import FastApiMCP
 from app.database import init_db, close_db
 from app.routes import system, list, user, auth, workspace
 from app.config import settings
@@ -15,7 +16,12 @@ async def lifespan(app_: FastAPI):
     close_db()
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    lifespan=lifespan,
+    title="Todo API",
+    description="Self-hosted Gruvbox-themed todo app made using FARM stack, with MCP server and LLM integration.",
+)
+# MCP initialization moved below so routes are registered first
 
 origins = [settings.cors_origin]
 
@@ -34,6 +40,31 @@ app.include_router(
     router=workspace.router, prefix="/api/workspaces", tags=["workspace"]
 )
 app.include_router(router=list.router, prefix="/api", tags=["todo list"])
+
+mcp = FastApiMCP(
+    app,
+    name="Todo MCP",
+    description="MCP server for the Todo API",
+    include_operations=[
+        "get_current_user",
+        "list_workspaces",
+        "create_workspace",
+        "get_workspace",
+        "update_workspace",
+        "delete_workspace",
+        "list_todo_lists",
+        "create_todo_list",
+        "get_todo_list",
+        "update_todo_list",
+        "delete_todo_list",
+        "create_todo_item",
+        "update_todo_item",
+        "delete_todo_item",
+        "list_tags",
+    ],
+)
+mcp.mount_http()
+
 
 if __name__ == "__main__":
     import uvicorn

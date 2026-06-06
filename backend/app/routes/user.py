@@ -105,7 +105,7 @@ async def change_password(passwordData: ChangePassword, current_user: currentUse
     return {"message": "password change sucessfull"}
 
 
-@router.get("/tags", status_code=status.HTTP_200_OK)
+@router.get("/tags", status_code=status.HTTP_200_OK, operation_id="list_tags")
 async def fetch_user_tags(current_user: currentUser):
     return await List.get_all_user_tags(current_user.id)
 

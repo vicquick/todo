@@ -132,6 +132,11 @@ async def reset_password(user_data: ResetPassword, background_task: BackgroundTa
     }
 
 
-@router.get("/me", response_model=UserResponse, status_code=status.HTTP_200_OK)
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+    operation_id="get_current_user",
+)
 async def authenticated_user(current_user: currentUser):
     return current_user

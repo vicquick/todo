@@ -17,7 +17,11 @@ import uuid
 router = APIRouter()
 
 
-@router.get("/workspaces/{workspace_id}/lists", status_code=status.HTTP_200_OK)
+@router.get(
+    "/workspaces/{workspace_id}/lists",
+    status_code=status.HTTP_200_OK,
+    operation_id="list_todo_lists",
+)
 async def fetch_lists(workspace_id: PydanticObjectId, current_user: currentUser):
     workspace = await Workspace.find_one(
         Workspace.id == workspace_id, Workspace.user_id == current_user.id
@@ -33,6 +37,7 @@ async def fetch_lists(workspace_id: PydanticObjectId, current_user: currentUser)
     "/workspaces/{workspace_id}/lists",
     response_model=ListResponse,
     status_code=status.HTTP_201_CREATED,
+    operation_id="create_todo_list",
 )
 async def create_lists(
     workspace_id: PydanticObjectId, list_data: ListCreate, current_user: currentUser
@@ -51,6 +56,7 @@ async def create_lists(
     "/workspaces/{workspace_id}/lists/{list_id}",
     response_model=ListDetailedResponse,
     status_code=status.HTTP_200_OK,
+    operation_id="get_todo_list",
 )
 async def fetch_lists_details(
     workspace_id: PydanticObjectId, list_id: PydanticObjectId, current_user: currentUser
@@ -74,6 +80,7 @@ async def fetch_lists_details(
     "/workspaces/{workspace_id}/lists/{list_id}",
     response_model=ListResponse,
     status_code=status.HTTP_200_OK,
+    operation_id="update_todo_list",
 )
 async def update_lists(
     workspace_id: PydanticObjectId,
@@ -98,7 +105,9 @@ async def update_lists(
 
 
 @router.delete(
-    "/workspaces/{workspace_id}/lists/{list_id}", status_code=status.HTTP_204_NO_CONTENT
+    "/workspaces/{workspace_id}/lists/{list_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    operation_id="delete_todo_list",
 )
 async def delete_lists(
     workspace_id: PydanticObjectId, list_id: PydanticObjectId, current_user: currentUser
@@ -120,6 +129,7 @@ async def delete_lists(
     "/workspaces/{workspace_id}/lists/{list_id}/items",
     response_model=ListDetailedResponse,
     status_code=status.HTTP_201_CREATED,
+    operation_id="create_todo_item",
 )
 async def create_list_item(
     workspace_id: PydanticObjectId,
@@ -157,6 +167,7 @@ async def create_list_item(
     "/workspaces/{workspace_id}/lists/{list_id}/items",
     response_model=ListDetailedResponse,
     status_code=status.HTTP_200_OK,
+    operation_id="update_todo_item",
 )
 async def update_item_state(
     workspace_id: PydanticObjectId,
@@ -203,6 +214,7 @@ async def update_item_state(
 @router.delete(
     "/workspaces/{workspace_id}/lists/{list_id}/items/{item_id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    operation_id="delete_todo_item",
 )
 async def delete_item(
     workspace_id: PydanticObjectId,
