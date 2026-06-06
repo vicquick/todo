@@ -97,11 +97,13 @@ export type Workspace = {
 
 export type ServerItem = {
   item_id: string;
+  parent_id?: string | null;
   label: string;
   checked: boolean;
   priority?: number | null; // 1=Low, 2=Medium, 3=High
   tags?: string[];
   description?: string | null;
+  deadline?: string | null;
 };
 
 export type ServerList = {
@@ -111,6 +113,7 @@ export type ServerList = {
   image_mime?: string | null;
   items?: ServerItem[];
   item_count?: number;
+  completed_count?: number;
   created_at?: string;
   updated_at?: string;
 };
@@ -136,11 +139,13 @@ function accentFor(id: string): TodoList["accent"] {
 export function toTodoItem(i: ServerItem): TodoItem {
   return {
     id: i.item_id,
+    parentId: i.parent_id ?? null,
     label: i.label,
     checked: !!i.checked,
     priority: (i.priority ?? null) as TodoItem["priority"],
     tags: i.tags ?? [],
     description: i.description ?? null,
+    deadline: i.deadline ?? null,
   };
 }
 
@@ -152,7 +157,9 @@ export function toTodoList(l: ServerList): TodoList {
     description: l.description ?? null,
     imageMime: l.image_mime ?? null,
     itemCount: l.items ? items.length : (l.item_count ?? 0),
-    completedCount: items.filter((x) => x.checked).length,
+    completedCount: l.items
+      ? items.filter((x) => x.checked).length
+      : (l.completed_count ?? 0),
     accent: accentFor(l.id),
   };
 }
@@ -418,6 +425,7 @@ export type ItemCreatePayload = {
   priority?: number | null;
   tags?: string[];
   description?: string | null;
+  parent_id?: string | null;
 };
 
 export type ItemPatchPayload = {
@@ -427,6 +435,7 @@ export type ItemPatchPayload = {
   priority?: number | null;
   tags?: string[];
   description?: string | null;
+  deadline?: string | null;
 };
 
 export async function createItem(
@@ -438,6 +447,7 @@ export async function createItem(
   if (payload.priority != null) body.priority = payload.priority;
   if (payload.tags && payload.tags.length) body.tags = payload.tags;
   if (payload.description) body.description = payload.description;
+  if (payload.parent_id) body.parent_id = payload.parent_id;
   const data = await request<ServerList>(
     `/api/workspaces/${workspaceId}/lists/${listId}/items`,
     {

@@ -178,8 +178,12 @@ export function Sidebar({ lists, selectedId, onSelect, onDelete, onCreate, onRen
                         <span aria-hidden
                           className={`absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full transition-opacity ${active ? "opacity-100" : "opacity-0"}`}
                           style={{ background: accentVar[l.accent] }} />
-                        <span aria-hidden className="size-2 rounded-full shrink-0"
-                          style={{ background: accentVar[l.accent], boxShadow: active ? `0 0 0 3px color-mix(in oklab, ${accentVar[l.accent]} 22%, transparent)` : "none" }} />
+                        <ProgressRing
+                          done={l.completedCount}
+                          total={l.itemCount}
+                          accent={accentVar[l.accent]}
+                          active={active}
+                        />
                         <span className="flex-1 truncate text-[0.92rem]">{l.name}</span>
                         <span className="font-mono text-[0.7rem] text-muted-foreground tabular-nums">
                           {l.completedCount}/{l.itemCount}
@@ -213,6 +217,29 @@ export function Sidebar({ lists, selectedId, onSelect, onDelete, onCreate, onRen
 
       <Footer onLogout={onLogout} />
     </aside>
+  );
+}
+
+function ProgressRing({ done, total, accent, active }: {
+  done: number; total: number; accent: string; active: boolean;
+}) {
+  const r = 6;
+  const c = 2 * Math.PI * r;
+  const pct = total > 0 ? done / total : 0;
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" className="shrink-0" aria-hidden
+      style={{ filter: active ? `drop-shadow(0 0 3px color-mix(in oklab, ${accent} 45%, transparent))` : "none" }}>
+      <circle cx="8" cy="8" r={r} fill="none" strokeWidth="2.5"
+        stroke={`color-mix(in oklab, ${accent} 28%, transparent)`} />
+      {pct > 0 && (
+        <circle cx="8" cy="8" r={r} fill="none" strokeWidth="2.5" stroke={accent}
+          strokeLinecap="round" strokeDasharray={c}
+          strokeDashoffset={c * (1 - pct)}
+          transform="rotate(-90 8 8)"
+          style={{ transition: "stroke-dashoffset 0.4s ease" }} />
+      )}
+      {pct >= 1 && total > 0 && <circle cx="8" cy="8" r="2.5" fill={accent} />}
+    </svg>
   );
 }
 

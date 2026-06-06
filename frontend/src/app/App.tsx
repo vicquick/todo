@@ -375,7 +375,7 @@ function Dashboard({
 
   const onAddItem = async (
     label: string,
-    opts: { priority?: Priority; tags?: string[]; description?: string } = {},
+    opts: { priority?: Priority; tags?: string[]; description?: string; parentId?: string } = {},
   ) => {
     if (!selectedId || !wsId) return;
     setAddingItem(true);
@@ -385,10 +385,11 @@ function Dashboard({
         priority: opts.priority ?? null,
         tags: opts.tags,
         description: opts.description ?? null,
+        parent_id: opts.parentId ?? null,
       });
       setItemsByList((m) => ({ ...m, [list.id]: items }));
       setLists((ls) => ls.map((l) => (l.id === list.id ? list : l)));
-      toast.success("Task added");
+      toast.success(opts.parentId ? "Subtask added" : "Task added");
     } catch (e: any) {
       toast.error("Couldn't add task", { description: e?.message });
     } finally {
@@ -447,7 +448,10 @@ function Dashboard({
       await api.deleteItem(wsId, selectedId, id);
       setItemsByList((m) => ({
         ...m,
-        [selectedId]: (m[selectedId] ?? []).filter((i) => i.id !== id),
+        // subtasks cascade at the DB level — drop them locally too
+        [selectedId]: (m[selectedId] ?? []).filter(
+          (i) => i.id !== id && i.parentId !== id,
+        ),
       }));
       setLists((ls) =>
         ls.map((l) => {
@@ -527,7 +531,12 @@ function Dashboard({
     if (!selectedId || !wsId || !ids.length) return;
     try {
       for (const id of ids) {
-        await api.deleteItem(wsId, selectedId, id);
+        try {
+          await api.deleteItem(wsId, selectedId, id);
+        } catch (e: any) {
+          // 404 = already cascade-deleted with its parent; anything else rethrows
+          if (e?.status !== 404) throw e;
+        }
       }
       setItemsByList((m) => ({
         ...m,

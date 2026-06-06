@@ -4,7 +4,7 @@ import {
   Plus, Trash2, Loader2, Check, MoreHorizontal, Calendar,
   Filter as FilterIcon, Pencil, X, ChevronDown, ChevronRight,
   CheckCheck, CircleDashed, ListChecks, Eraser, Square, CheckSquare, Tag as TagIcon, Flag,
-  AlignLeft, Image as ImageIcon,
+  AlignLeft, Image as ImageIcon, CornerDownRight,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -20,11 +20,13 @@ import { PriorityChip, PrioritySelect, TagChip, TagSelect } from "./Chips";
 
 export type TodoItem = {
   id: string;
+  parentId?: string | null;
   label: string;
   checked: boolean;
   priority?: Priority | null;
   tags?: string[];
   description?: string | null;
+  deadline?: string | null;
   pending?: boolean;
 };
 
@@ -34,6 +36,7 @@ export type ItemPatch = {
   priority?: Priority | null;
   tags?: string[];
   description?: string | null;
+  deadline?: string | null;
 };
 
 type Filter = "all" | "active" | "done";
@@ -47,7 +50,7 @@ type Props = {
   error?: string | null;
   adding?: boolean;
 
-  onAdd: (label: string, opts: { priority?: Priority; tags?: string[]; description?: string }) => void;
+  onAdd: (label: string, opts: { priority?: Priority; tags?: string[]; description?: string; parentId?: string }) => void;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onRenameItem: (id: string, label: string) => void;
@@ -175,8 +178,19 @@ export function MainPanel({
     setEditingSubtitle(false);
   };
 
+  const childrenByParent = useMemo(() => {
+    const m: Record<string, TodoItem[]> = {};
+    for (const i of items) {
+      if (i.parentId) (m[i.parentId] ??= []).push(i);
+    }
+    for (const k of Object.keys(m)) {
+      m[k] = [...m[k]].sort((a, b) => (a.checked === b.checked ? 0 : a.checked ? 1 : -1));
+    }
+    return m;
+  }, [items]);
+
   const filtered = useMemo(() => {
-    let arr = items;
+    let arr = items.filter((i) => !i.parentId); // tree roots; subtasks render under their parent
     if (filter === "active") arr = arr.filter((i) => !i.checked);
     if (filter === "done") arr = arr.filter((i) => i.checked);
     if (tagFilter.length > 0) {
@@ -194,6 +208,8 @@ export function MainPanel({
     });
     return arr;
   }, [items, filter, tagFilter]);
+
+  const [subtaskFor, setSubtaskFor] = useState<string | null>(null);
 
   const completed = items.filter((i) => i.checked).length;
   const progress = items.length === 0 ? 0 : Math.round((completed / items.length) * 100);
@@ -479,22 +495,52 @@ export function MainPanel({
           ) : (
             <ul className="space-y-1.5">
               <AnimatePresence initial={false}>
-                {filtered.map((it) => (
-                  <ItemRow
-                    key={it.id}
-                    item={it}
-                    tags={tags}
-                    accent={accentVar[list.accent]}
-                    isSelected={selected.has(it.id)}
-                    anySelected={anySelected}
-                    onSelectToggle={() => toggleSelect(it.id)}
-                    onToggle={() => onToggle(it.id)}
-                    onDelete={() => onDelete(it.id)}
-                    onRename={(label) => onRenameItem(it.id, label)}
-                    onPatch={(patch) => onPatchItem(it.id, patch)}
-                    onCreateTag={onCreateTag}
-                  />
-                ))}
+                {filtered.map((it) => {
+                  const kids = childrenByParent[it.id] ?? [];
+                  return [
+                    <ItemRow
+                      key={it.id}
+                      item={it}
+                      tags={tags}
+                      accent={accentVar[list.accent]}
+                      isSelected={selected.has(it.id)}
+                      anySelected={anySelected}
+                      subtaskStats={kids.length ? { done: kids.filter((k) => k.checked).length, total: kids.length } : undefined}
+                      onSelectToggle={() => toggleSelect(it.id)}
+                      onToggle={() => onToggle(it.id)}
+                      onDelete={() => onDelete(it.id)}
+                      onRename={(label) => onRenameItem(it.id, label)}
+                      onPatch={(patch) => onPatchItem(it.id, patch)}
+                      onCreateTag={onCreateTag}
+                      onAddSubtask={() => setSubtaskFor(subtaskFor === it.id ? null : it.id)}
+                    />,
+                    ...kids.map((kid) => (
+                      <ItemRow
+                        key={kid.id}
+                        item={kid}
+                        tags={tags}
+                        accent={accentVar[list.accent]}
+                        isChild
+                        isSelected={selected.has(kid.id)}
+                        anySelected={anySelected}
+                        onSelectToggle={() => toggleSelect(kid.id)}
+                        onToggle={() => onToggle(kid.id)}
+                        onDelete={() => onDelete(kid.id)}
+                        onRename={(label) => onRenameItem(kid.id, label)}
+                        onPatch={(patch) => onPatchItem(kid.id, patch)}
+                        onCreateTag={onCreateTag}
+                      />
+                    )),
+                    subtaskFor === it.id ? (
+                      <SubtaskInputRow
+                        key={`${it.id}-subtask-input`}
+                        parentLabel={it.label}
+                        onSubmit={(label) => { onAdd(label, { parentId: it.id }); setSubtaskFor(null); }}
+                        onCancel={() => setSubtaskFor(null)}
+                      />
+                    ) : null,
+                  ];
+                })}
               </AnimatePresence>
             </ul>
           )}
@@ -536,21 +582,76 @@ export function MainPanel({
   );
 }
 
+function SubtaskInputRow({ parentLabel, onSubmit, onCancel }: {
+  parentLabel: string;
+  onSubmit: (label: string) => void;
+  onCancel: () => void;
+}) {
+  const [val, setVal] = useState("");
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => { ref.current?.focus(); }, []);
+  const submit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const t = val.trim();
+    if (!t) { onCancel(); return; }
+    onSubmit(t);
+  };
+  return (
+    <motion.li
+      layout
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, height: 0 }}
+      className="ml-9"
+    >
+      <form onSubmit={submit}
+        className="flex items-center gap-2 rounded-lg border border-dashed border-border-strong bg-card/60 pl-3 pr-1.5 py-1.5">
+        <CornerDownRight className="size-3.5 text-muted-foreground shrink-0" />
+        <Input ref={ref} value={val} onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
+          placeholder={`Subtask of “${parentLabel.slice(0, 30)}”…`}
+          maxLength={250}
+          className="h-8 px-2 border-0 bg-transparent shadow-none focus-visible:ring-0" />
+        <Button type="submit" size="icon" variant="ghost" className="size-7" aria-label="Add subtask">
+          <Check className="size-3.5" />
+        </Button>
+        <Button type="button" size="icon" variant="ghost" className="size-7" aria-label="Cancel" onClick={onCancel}>
+          <X className="size-3.5" />
+        </Button>
+      </form>
+    </motion.li>
+  );
+}
+
+function deadlineMeta(item: TodoItem): { text: string; overdue: boolean } | null {
+  if (!item.deadline) return null;
+  const d = new Date(item.deadline);
+  if (isNaN(d.getTime())) return null;
+  const overdue = !item.checked && d.getTime() < Date.now();
+  return {
+    text: d.toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+    overdue,
+  };
+}
+
 function ItemRow({
-  item, tags, accent, isSelected, anySelected,
-  onSelectToggle, onToggle, onDelete, onRename, onPatch, onCreateTag,
+  item, tags, accent, isSelected, anySelected, isChild, subtaskStats,
+  onSelectToggle, onToggle, onDelete, onRename, onPatch, onCreateTag, onAddSubtask,
 }: {
   item: TodoItem;
   tags: Tag[];
   accent: string;
   isSelected: boolean;
   anySelected: boolean;
+  isChild?: boolean;
+  subtaskStats?: { done: number; total: number };
   onSelectToggle: () => void;
   onToggle: () => void;
   onDelete: () => void;
   onRename: (label: string) => void;
   onPatch: (patch: ItemPatch) => void;
   onCreateTag?: (name: string) => Promise<any>;
+  onAddSubtask?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.label);
@@ -585,7 +686,8 @@ function ItemRow({
       transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
       className={`group rounded-xl border bg-card shadow-soft-sm hover:shadow-soft-md transition-all ${
         isSelected ? "border-ring/60 ring-1 ring-ring/30" : "border-border"
-      }`}
+      } ${isChild ? "ml-9 border-l-2" : ""}`}
+      style={isChild ? { borderLeftColor: `color-mix(in oklab, ${accent} 45%, transparent)` } : undefined}
     >
       <div className="px-4 py-3 flex items-center gap-3">
         {/* selection checkbox */}
@@ -657,8 +759,24 @@ function ItemRow({
           </button>
         )}
 
-        {/* inline meta (priority + tags) */}
+        {/* inline meta (priority + tags + due + subtasks) */}
         <div className="flex items-center gap-1 flex-wrap shrink-0">
+          {subtaskStats && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-border px-1.5 py-0.5 text-[0.65rem] font-mono text-muted-foreground tabular-nums"
+              title={`${subtaskStats.done} of ${subtaskStats.total} subtasks done`}>
+              <CornerDownRight className="size-3" /> {subtaskStats.done}/{subtaskStats.total}
+            </span>
+          )}
+          {(() => {
+            const due = deadlineMeta(item);
+            return due ? (
+              <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[0.65rem] font-mono tabular-nums ${
+                due.overdue ? "border-destructive/40 text-destructive" : "border-border text-muted-foreground"
+              }`}>
+                <Calendar className="size-3" /> {due.text}
+              </span>
+            ) : null;
+          })()}
           {item.priority && <PriorityChip priority={item.priority} />}
           {itemTags.slice(0, 3).map((t) => <TagChip key={t.id} tag={t} compact />)}
           {itemTags.length > 3 && (
@@ -692,6 +810,14 @@ function ItemRow({
             <DropdownMenuItem onClick={() => setEditing(true)}><Pencil className="size-4" /> Rename</DropdownMenuItem>
             <DropdownMenuItem onClick={() => { setExpanded(true); setEditingDesc(true); }}>
               <ChevronDown className="size-4" /> {hasDescription ? "Edit description" : "Add description"}
+            </DropdownMenuItem>
+            {onAddSubtask && (
+              <DropdownMenuItem onClick={onAddSubtask}>
+                <CornerDownRight className="size-4" /> Add subtask
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={() => setExpanded(true)}>
+              <Calendar className="size-4" /> {item.deadline ? "Edit due date" : "Set due date"}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuLabel className="font-mono text-[0.65rem] tracking-wider uppercase">Priority</DropdownMenuLabel>
@@ -738,6 +864,26 @@ function ItemRow({
                   onCreateTag={onCreateTag}
                 />
                 <PrioritySelect value={item.priority ?? undefined} onChange={(p) => onPatch({ priority: p ?? null })} />
+              </div>
+
+              {/* due date */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="label">Due</span>
+                <input
+                  type="date"
+                  value={item.deadline ? new Date(item.deadline).toISOString().slice(0, 10) : ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    onPatch({ deadline: v ? new Date(`${v}T12:00:00`).toISOString() : null });
+                  }}
+                  className="h-8 rounded-md border border-border bg-input-background px-2 text-sm text-foreground"
+                />
+                {item.deadline && (
+                  <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground"
+                    onClick={() => onPatch({ deadline: null })}>
+                    <X className="size-3.5" /> Clear
+                  </Button>
+                )}
               </div>
 
               {/* description */}

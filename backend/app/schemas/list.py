@@ -38,6 +38,7 @@ class ListSummary(BaseModel):
     description: str | None = None
     image_mime: str | None = None
     item_count: int
+    completed_count: int = 0
     created_at: datetime
     updated_at: datetime
 
@@ -49,6 +50,7 @@ class ItemCreate(BaseModel):
     tags: list[str] = []
     description: str | None = Field(default=None, min_length=0, max_length=10000)
     deadline: datetime | None = Field(default=None)
+    parent_id: UUID | None = Field(default=None)
 
 
 class ItemUpdatePartial(BaseModel):
@@ -66,6 +68,7 @@ class ItemResponse(BaseModel):
 
     # API contract keeps `item_id`; the ORM attribute is `id`
     item_id: UUID = Field(validation_alias=AliasChoices("id", "item_id"))
+    parent_id: UUID | None = None
     label: str
     checked: bool
     priority: int | None = None

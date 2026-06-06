@@ -84,6 +84,9 @@ class Item(Base, TimestampMixin):
     list_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("lists.id", ondelete="CASCADE"), index=True
     )
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("items.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     label: Mapped[str] = mapped_column(String(250))
     checked: Mapped[bool] = mapped_column(Boolean, default=False)
     priority: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, File, HTTPException, Response, UploadFile, status
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 
 from app.schemas.list import (
     ListCreate,
@@ -69,6 +69,9 @@ async def fetch_lists(
             ListModel.description,
             ListModel.image_mime,
             func.count(Item.id).label("item_count"),
+            func.coalesce(
+                func.sum(case((Item.checked, 1), else_=0)), 0
+            ).label("completed_count"),
             ListModel.created_at,
             ListModel.updated_at,
         )
@@ -85,6 +88,7 @@ async def fetch_lists(
             description=row.description,
             image_mime=row.image_mime,
             item_count=row.item_count,
+            completed_count=int(row.completed_count or 0),
             created_at=row.created_at,
             updated_at=row.updated_at,
         )
@@ -269,8 +273,25 @@ async def create_list_item(
 ):
     await get_owned_workspace(session, workspace_id, current_user.id)
     todolist = await get_list_in_workspace(session, workspace_id, list_id)
+    if item_data.parent_id is not None:
+        parent = await session.scalar(
+            select(Item).where(
+                Item.id == item_data.parent_id, Item.list_id == todolist.id
+            )
+        )
+        if not parent:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="parent task not found in this project",
+            )
+        if parent.parent_id is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="subtasks cannot have their own subtasks",
+            )
     new_item = Item(
         list_id=todolist.id,
+        parent_id=item_data.parent_id,
         label=item_data.label,
         checked=item_data.checked,
         priority=item_data.priority,
