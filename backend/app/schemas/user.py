@@ -1,11 +1,13 @@
-from pydantic import BaseModel, Field
-from beanie import PydanticObjectId
+from uuid import UUID
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic import EmailStr
 from datetime import datetime
 
 
 class ApiKeyBase(BaseModel):
-    id: PydanticObjectId
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
     name: str
     prefix: str
     last_used_at: datetime | None = None
@@ -36,13 +38,17 @@ class UserCreate(UserBase):
 
 
 class UserResponse(UserBase):
-    id: PydanticObjectId
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
     created_at: datetime
     updated_at: datetime
 
 
 class UserPrivateResponse(BaseModel):
-    id: PydanticObjectId
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
     username: str
     email: EmailStr
     password_hash: str
@@ -51,7 +57,9 @@ class UserPrivateResponse(BaseModel):
 
 
 class UserPublicResponse(BaseModel):
-    id: PydanticObjectId
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
     username: str
     created_at: datetime
     updated_at: datetime

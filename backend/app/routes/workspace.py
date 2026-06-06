@@ -1,9 +1,12 @@
+from uuid import UUID
+
 from fastapi import APIRouter, status, HTTPException
+from sqlalchemy import select
+
 from app.schemas.workspace import WorkspaceResponse, WorkspaceCreate, WorkspaceUpdate
 from app.auth import currentUser
-from app.models import Workspace, User, List
-from beanie import PydanticObjectId
-from datetime import datetime, UTC
+from app.models import User, Workspace, utcnow
+from app.database import SessionDep
 
 router = APIRouter()
 
@@ -14,12 +17,13 @@ router = APIRouter()
     status_code=status.HTTP_200_OK,
     operation_id="list_workspaces",
 )
-async def fetch_workspaces(current_user: currentUser):
-    return (
-        await Workspace.find(Workspace.user_id == current_user.id)
-        .sort("+created_at")
-        .to_list()
+async def fetch_workspaces(current_user: currentUser, session: SessionDep):
+    result = await session.scalars(
+        select(Workspace)
+        .where(Workspace.user_id == current_user.id)
+        .order_by(Workspace.created_at)
     )
+    return result.all()
 
 
 @router.post(
@@ -28,17 +32,22 @@ async def fetch_workspaces(current_user: currentUser):
     status_code=status.HTTP_201_CREATED,
     operation_id="create_workspace",
 )
-async def create_workspace(current_user: currentUser, workspace_data: WorkspaceCreate):
-    existing_workspace = await Workspace.find_one(
-        Workspace.name == workspace_data.name,
-        Workspace.user_id == current_user.id,
+async def create_workspace(
+    current_user: currentUser, workspace_data: WorkspaceCreate, session: SessionDep
+):
+    existing_workspace = await session.scalar(
+        select(Workspace).where(
+            Workspace.name == workspace_data.name,
+            Workspace.user_id == current_user.id,
+        )
     )
     if existing_workspace:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="workspace already present"
         )
     new_workspace = Workspace(name=workspace_data.name, user_id=current_user.id)
-    await new_workspace.create()
+    session.add(new_workspace)
+    await session.commit()
     return new_workspace
 
 
@@ -49,10 +58,12 @@ async def create_workspace(current_user: currentUser, workspace_data: WorkspaceC
     operation_id="get_workspace",
 )
 async def fetch_workspace_details(
-    workspace_id: PydanticObjectId, current_user: currentUser
+    workspace_id: UUID, current_user: currentUser, session: SessionDep
 ):
-    workspace = await Workspace.find_one(
-        Workspace.id == workspace_id, Workspace.user_id == current_user.id
+    workspace = await session.scalar(
+        select(Workspace).where(
+            Workspace.id == workspace_id, Workspace.user_id == current_user.id
+        )
     )
     if not workspace:
         raise HTTPException(
@@ -68,32 +79,44 @@ async def fetch_workspace_details(
     operation_id="update_workspace",
 )
 async def update_workspace_partial(
-    workspace_id: PydanticObjectId, update: WorkspaceUpdate, current_user: currentUser
+    workspace_id: UUID,
+    update: WorkspaceUpdate,
+    current_user: currentUser,
+    session: SessionDep,
 ):
-    workspace = await Workspace.find_one(
-        Workspace.id == workspace_id, Workspace.user_id == current_user.id
+    workspace = await session.scalar(
+        select(Workspace).where(
+            Workspace.id == workspace_id, Workspace.user_id == current_user.id
+        )
     )
     if not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="workspace not found"
         )
-    if update.user_id != None:
-        user = await User.find_one(User.id == update.user_id)
+    if update.user_id is not None:
+        user = await session.get(User, update.user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="updated user not found"
             )
-        await workspace.update({"$set": {"user_id": user.id}})
-    if update.name != None:
-        existing_workspace = await Workspace.find_one(Workspace.name == update.name)
+        workspace.user_id = user.id
+    if update.name is not None:
+        existing_workspace = await session.scalar(
+            select(Workspace).where(
+                Workspace.name == update.name,
+                Workspace.user_id == current_user.id,
+                Workspace.id != workspace_id,
+            )
+        )
         if existing_workspace:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="workspace already present",
             )
-        await workspace.update({"$set": {"name": update.name}})
-    await workspace.update({"$set": {"updated_at": datetime.now(UTC)}})
-    return await Workspace.get(workspace_id)
+        workspace.name = update.name
+    workspace.updated_at = utcnow()
+    await session.commit()
+    return workspace
 
 
 @router.delete(
@@ -101,15 +124,18 @@ async def update_workspace_partial(
     status_code=status.HTTP_204_NO_CONTENT,
     operation_id="delete_workspace",
 )
-async def delete_workspace(workspace_id: PydanticObjectId, current_user: currentUser):
-    workspace = await Workspace.find_one(
-        Workspace.id == workspace_id, Workspace.user_id == current_user.id
+async def delete_workspace(
+    workspace_id: UUID, current_user: currentUser, session: SessionDep
+):
+    workspace = await session.scalar(
+        select(Workspace).where(
+            Workspace.id == workspace_id, Workspace.user_id == current_user.id
+        )
     )
     if not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="workspace not found"
         )
-    workspace_list = await List.find(List.workspace_id == workspace.id).to_list()
-    for ws in workspace_list:
-        await ws.delete()
-    await workspace.delete()
+    # lists and items cascade at the database level
+    await session.delete(workspace)
+    await session.commit()

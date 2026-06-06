@@ -6,12 +6,11 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf8")
     # API
     base_url: str
-    cors_origin: str = "https://uitodo.netlify.app"
-    frontend_url: str = "https://uitodo.netlify.app"
+    cors_origin: str = "https://tasks.budinic.art"
+    frontend_url: str = "https://tasks.budinic.art"
 
     # Database
-    mongo_url: SecretStr
-    mongo_db: str = "todolist"
+    database_url: SecretStr
 
     # Auth
     access_token_expire_minutes: int = 30

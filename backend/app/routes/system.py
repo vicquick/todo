@@ -1,19 +1,16 @@
 from fastapi import APIRouter, status, HTTPException
-from app.database import db
+from sqlalchemy import text
+
+from app.database import SessionDep
 
 router = APIRouter()
 
 
 @router.get("/health", status_code=status.HTTP_200_OK)
-async def health_check():
+async def health_check(session: SessionDep):
     try:
-        pong = await db.command("ping")
-        if pong.get("ok") != 1:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="database unavailable",
-            )
-        return {"status": f"healthy"}
+        await session.execute(text("SELECT 1"))
+        return {"status": "healthy"}
     except Exception:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

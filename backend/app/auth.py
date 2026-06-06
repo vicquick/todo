@@ -5,12 +5,14 @@ from datetime import timedelta, datetime, UTC
 import jwt
 import secrets
 import hashlib
+import uuid
 
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import select
+
 from app.config import settings
-from app.models import User
-from app.schemas.user import UserPrivateResponse
-from app.models import ApiKey
+from app.database import SessionDep
+from app.models import ApiKey, User, utcnow
 
 password_hash = PasswordHash.recommended()
 oauth2_scheme = OAuth2PasswordBearer("/api/auth/token")
@@ -75,28 +77,34 @@ def verify_token(token: str, type: str = "access") -> str | None:
         return payload.get("sub")
 
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
+async def get_current_user(
+    token: Annotated[str, Depends(oauth2_scheme)], session: SessionDep
+) -> User:
     if token.startswith("sk_"):
-        api_key = await ApiKey.find_one(ApiKey.key_hash == hash_api_key(token))
+        api_key = await session.scalar(
+            select(ApiKey).where(ApiKey.key_hash == hash_api_key(token))
+        )
         if not api_key:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="invalid or expired api key",
             )
         if api_key.expires_at is not None and api_key.expires_at < datetime.now(UTC):
-            await api_key.delete()
+            await session.delete(api_key)
+            await session.commit()
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="invalid or expired api key",
             )
 
-        user = await User.find_one(User.id == api_key.user_id)
+        user = await session.get(User, api_key.user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="invalid or expired api key",
             )
-        await api_key.update({"$set": {"last_used_at": datetime.now(UTC)}})
+        api_key.last_used_at = utcnow()
+        await session.commit()
         return user
 
     user_id = verify_token(token)
@@ -106,12 +114,19 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
             detail="invalid or expired token",
         )
 
-    user = await User.get(user_id)
-    if not user or user is None:
+    try:
+        user_uuid = uuid.UUID(user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid or expired token",
+        )
+    user = await session.get(User, user_uuid)
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="user not found"
         )
     return user
 
 
-currentUser = Annotated[UserPrivateResponse, Depends(get_current_user)]
+currentUser = Annotated[User, Depends(get_current_user)]

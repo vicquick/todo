@@ -1,33 +1,36 @@
 services:
   todo-backend:
     container_name: todo-backend
-    image: virajsh/todo-backend:latest
+    build: ./backend
     ports:
       - 8888:80
     env_file:
       - .env
-    networks:
-      - nginx
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   todo-frontend:
     container_name: todo-frontend
-    image: virajsh/todo-frontend:latest
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
     ports:
       - 5173:80
-    env_file:
-      - .env
-    networks:
-      - nginx
 
-  mongo:
+  postgres:
     container_name: todo-database
-    image: mongo:8.3.2
-    ports:
-      - 20000:27017
+    image: postgres:17-alpine
     env_file:
       - .env
-    networks:
-      - nginx
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
-networks:
-  nginx:
+volumes:
+  pgdata:

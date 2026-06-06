@@ -13,13 +13,13 @@ async def lifespan(app_: FastAPI):
     await init_db()
     yield
     # Shutdown
-    close_db()
+    await close_db()
 
 
 app = FastAPI(
     lifespan=lifespan,
     title="Todo API",
-    description="Self-hosted Gruvbox-themed todo app made using FARM stack, with MCP server and LLM integration.",
+    description="Self-hosted Gruvbox-themed todo app made using FastAPI, PostgreSQL and React, with MCP server and LLM integration.",
 )
 # MCP initialization moved below so routes are registered first
 

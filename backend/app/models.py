@@ -1,103 +1,123 @@
-from beanie import Document, PydanticObjectId
-from pydantic import EmailStr, Field
-from app.schemas.list import ItemBase
-from app.schemas.list import ListSummary
+import uuid
 from datetime import datetime, UTC
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
 def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
-class List(Document):
-    workspace_id: PydanticObjectId
-    name: str
-    items: list[ItemBase] = []
-    created_at: datetime = Field(default_factory=utcnow)
-    updated_at: datetime = Field(default_factory=utcnow)
-
-    @staticmethod
-    async def list_summaries(workspace_id: PydanticObjectId) -> list[ListSummary]:
-        pipeline = [
-            {"$match": {"workspace_id": workspace_id}},
-            {
-                "$project": {
-                    "id": "$_id",
-                    "name": 1,
-                    "item_count": {"$size": "$items"},
-                    "created_at": 1,
-                    "updated_at": 1,
-                }
-            },
-        ]
-        return await List.aggregate(pipeline, projection_model=ListSummary).to_list()
-
-    @staticmethod
-    async def get_all_user_tags(user_id: PydanticObjectId) -> list[str]:
-        workspace_ids = [
-            workspace.id
-            for workspace in await Workspace.find(
-                Workspace.user_id == user_id
-            ).to_list()
-        ]
-        pipeline = [
-            {"$match": {"workspace_id": {"$in": workspace_ids}}},
-            {"$unwind": "$items"},
-            {"$unwind": "$items.tags"},
-            {"$group": {"_id": "$items.tags"}},
-            {"$project": {"tag": "$_id", "_id": 0}},
-        ]
-        results = await List.aggregate(pipeline).to_list()
-        return [doc["tag"] for doc in results]
-
-    class Settings:
-        name = "lists"
-        indexes = ["workspace_id"]
+class Base(DeclarativeBase):
+    pass
 
 
-class User(Document):
-    username: str
-    email: EmailStr
-    password_hash: str
-    created_at: datetime = Field(default_factory=utcnow)
-    updated_at: datetime = Field(default_factory=utcnow)
-
-    class Settings:
-        name = "users"
-        indexes = ["username", "email"]
+class TimestampMixin:
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
 
 
-class ResetToken(Document):
-    token_hash: str
-    user_id: PydanticObjectId
-    created_at: datetime = Field(default_factory=utcnow)
-    expires_at: datetime
+class User(Base, TimestampMixin):
+    __tablename__ = "users"
 
-    class Settings:
-        name = "reset_token"
-        indexes = ["token_hash", "user_id"]
-
-
-class ApiKey(Document):
-    user_id: PydanticObjectId
-    name: str
-    key_hash: str
-    prefix: str
-    last_used_at: datetime | None = None
-    created_at: datetime = Field(default_factory=utcnow)
-    expires_at: datetime | None
-
-    class Settings:
-        name = "apikey"
-        indexes = ["user_id", "name"]
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    username: Mapped[str] = mapped_column(String(30), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(Text)
 
 
-class Workspace(Document):
-    user_id: PydanticObjectId
-    name: str
-    created_at: datetime = Field(default_factory=utcnow)
-    updated_at: datetime = Field(default_factory=utcnow)
+class Workspace(Base, TimestampMixin):
+    __tablename__ = "workspaces"
 
-    class Settings:
-        name = "workspaces"
-        indexes = ["user_id"]
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(100))
+
+
+class List(Base, TimestampMixin):
+    __tablename__ = "lists"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(100))
+
+    items: Mapped[list["Item"]] = relationship(
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="Item.created_at",
+        lazy="selectin",
+    )
+
+
+class Item(Base, TimestampMixin):
+    __tablename__ = "items"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    list_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("lists.id", ondelete="CASCADE"), index=True
+    )
+    label: Mapped[str] = mapped_column(String(250))
+    checked: Mapped[bool] = mapped_column(Boolean, default=False)
+    priority: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    tags: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    deadline: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class ResetToken(Base):
+    __tablename__ = "reset_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ApiKey(Base):
+    __tablename__ = "api_keys"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(64))
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    prefix: Mapped[str] = mapped_column(String(8))
+    last_used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
+    expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

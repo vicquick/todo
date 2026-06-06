@@ -1,36 +1,89 @@
+from uuid import UUID
+
 from fastapi import APIRouter, status, HTTPException
+from sqlalchemy import func, select
+
 from app.schemas.list import (
     ListCreate,
     ListResponse,
     ListDetailedResponse,
+    ListSummary,
     ItemCreate,
     ListUpdate,
     ItemUpdatePartial,
 )
-from app.models import List, Workspace
-from beanie import PydanticObjectId
+from app.models import Item, List as ListModel, Workspace, utcnow
+from app.database import SessionDep
 from app.utils import normalize_tags
 from app.auth import currentUser
-from datetime import datetime, UTC
-import uuid
 
 router = APIRouter()
 
 
-@router.get(
-    "/workspaces/{workspace_id}/lists",
-    status_code=status.HTTP_200_OK,
-    operation_id="list_todo_lists",
-)
-async def fetch_lists(workspace_id: PydanticObjectId, current_user: currentUser):
-    workspace = await Workspace.find_one(
-        Workspace.id == workspace_id, Workspace.user_id == current_user.id
+async def get_owned_workspace(
+    session, workspace_id: UUID, user_id: UUID
+) -> Workspace:
+    workspace = await session.scalar(
+        select(Workspace).where(
+            Workspace.id == workspace_id, Workspace.user_id == user_id
+        )
     )
     if not workspace:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="workspace not found"
         )
-    return await List.list_summaries(workspace_id)
+    return workspace
+
+
+async def get_list_in_workspace(
+    session, workspace_id: UUID, list_id: UUID
+) -> ListModel:
+    todolist = await session.scalar(
+        select(ListModel).where(
+            ListModel.workspace_id == workspace_id, ListModel.id == list_id
+        )
+    )
+    if not todolist:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="todo list not found"
+        )
+    return todolist
+
+
+@router.get(
+    "/workspaces/{workspace_id}/lists",
+    response_model=list[ListSummary],
+    status_code=status.HTTP_200_OK,
+    operation_id="list_todo_lists",
+)
+async def fetch_lists(
+    workspace_id: UUID, current_user: currentUser, session: SessionDep
+):
+    await get_owned_workspace(session, workspace_id, current_user.id)
+    stmt = (
+        select(
+            ListModel.id,
+            ListModel.name,
+            func.count(Item.id).label("item_count"),
+            ListModel.created_at,
+            ListModel.updated_at,
+        )
+        .outerjoin(Item, Item.list_id == ListModel.id)
+        .where(ListModel.workspace_id == workspace_id)
+        .group_by(ListModel.id)
+        .order_by(ListModel.created_at)
+    )
+    rows = (await session.execute(stmt)).all()
+    return [
+        ListSummary(
+            id=row.id,
+            name=row.name,
+            item_count=row.item_count,
+            created_at=row.created_at,
+            updated_at=row.updated_at,
+        )
+        for row in rows
+    ]
 
 
 @router.post(
@@ -40,16 +93,16 @@ async def fetch_lists(workspace_id: PydanticObjectId, current_user: currentUser)
     operation_id="create_todo_list",
 )
 async def create_lists(
-    workspace_id: PydanticObjectId, list_data: ListCreate, current_user: currentUser
+    workspace_id: UUID,
+    list_data: ListCreate,
+    current_user: currentUser,
+    session: SessionDep,
 ):
-    workspace = await Workspace.find_one(Workspace.id == workspace_id)
-    if not workspace or not workspace.user_id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="workspace not found"
-        )
-    new_list = List(name=list_data.name, workspace_id=workspace_id)
-    await new_list.create()
-    return new_list
+    await get_owned_workspace(session, workspace_id, current_user.id)
+    new_list = ListModel(name=list_data.name, workspace_id=workspace_id)
+    session.add(new_list)
+    await session.commit()
+    return await get_list_in_workspace(session, workspace_id, new_list.id)
 
 
 @router.get(
@@ -59,21 +112,13 @@ async def create_lists(
     operation_id="get_todo_list",
 )
 async def fetch_lists_details(
-    workspace_id: PydanticObjectId, list_id: PydanticObjectId, current_user: currentUser
+    workspace_id: UUID,
+    list_id: UUID,
+    current_user: currentUser,
+    session: SessionDep,
 ):
-    workspace = await Workspace.find_one(Workspace.id == workspace_id)
-    if not workspace or not workspace.user_id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="workspace not found"
-        )
-    list_details = await List.find_one(
-        List.workspace_id == workspace_id, List.id == list_id
-    )
-    if not list_details:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="todo list not found"
-        )
-    return list_details
+    await get_owned_workspace(session, workspace_id, current_user.id)
+    return await get_list_in_workspace(session, workspace_id, list_id)
 
 
 @router.patch(
@@ -83,25 +128,19 @@ async def fetch_lists_details(
     operation_id="update_todo_list",
 )
 async def update_lists(
-    workspace_id: PydanticObjectId,
-    list_id: PydanticObjectId,
+    workspace_id: UUID,
+    list_id: UUID,
     list_data: ListUpdate,
     current_user: currentUser,
+    session: SessionDep,
 ):
-    workspace = await Workspace.find_one(Workspace.id == workspace_id)
-    if not workspace or not workspace.user_id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="workspace not found"
-        )
-    list = await List.find_one(List.workspace_id == workspace_id, List.id == list_id)
-    if not list:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="list not found"
-        )
+    await get_owned_workspace(session, workspace_id, current_user.id)
+    todolist = await get_list_in_workspace(session, workspace_id, list_id)
     if list_data.name is not None:
-        await list.update({"$set": {"name": list_data.name}})
-    await list.update({"$set": {"updated_at": datetime.now(UTC)}})
-    return await List.find_one(List.workspace_id == workspace_id, List.id == list_id)
+        todolist.name = list_data.name
+    todolist.updated_at = utcnow()
+    await session.commit()
+    return todolist
 
 
 @router.delete(
@@ -110,19 +149,15 @@ async def update_lists(
     operation_id="delete_todo_list",
 )
 async def delete_lists(
-    workspace_id: PydanticObjectId, list_id: PydanticObjectId, current_user: currentUser
+    workspace_id: UUID,
+    list_id: UUID,
+    current_user: currentUser,
+    session: SessionDep,
 ):
-    workspace = await Workspace.find_one(Workspace.id == workspace_id)
-    if not workspace or not workspace.user_id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="workspace not found"
-        )
-    list = await List.find_one(List.workspace_id == workspace_id, List.id == list_id)
-    if not list:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="todo list not found"
-        )
-    await list.delete()
+    await get_owned_workspace(session, workspace_id, current_user.id)
+    todolist = await get_list_in_workspace(session, workspace_id, list_id)
+    await session.delete(todolist)
+    await session.commit()
 
 
 @router.post(
@@ -132,35 +167,27 @@ async def delete_lists(
     operation_id="create_todo_item",
 )
 async def create_list_item(
-    workspace_id: PydanticObjectId,
-    list_id: PydanticObjectId,
+    workspace_id: UUID,
+    list_id: UUID,
     item_data: ItemCreate,
     current_user: currentUser,
+    session: SessionDep,
 ):
-    workspace = await Workspace.find_one(Workspace.id == workspace_id)
-    if not workspace or not workspace.user_id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="workspace not found"
-        )
-    todolist = await List.find_one(
-        List.workspace_id == workspace_id, List.id == list_id
+    await get_owned_workspace(session, workspace_id, current_user.id)
+    todolist = await get_list_in_workspace(session, workspace_id, list_id)
+    new_item = Item(
+        list_id=todolist.id,
+        label=item_data.label,
+        checked=item_data.checked,
+        priority=item_data.priority,
+        tags=normalize_tags(item_data.tags),
+        description=item_data.description,
+        deadline=item_data.deadline,
     )
-    if not todolist:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="todo list not found"
-        )
-    item_dict = item_data.model_dump()
-    item_dict["item_id"] = uuid.uuid4().hex
-    if "tags" in item_dict:
-        item_dict["tags"] = normalize_tags(item_dict["tags"])
-    else:
-        item_dict["tags"] = []
-    item_dict["created_at"] = datetime.now(UTC)
-    item_dict["updated_at"] = datetime.now(UTC)
-    await todolist.update(
-        {"$push": {"items": item_dict}, "$set": {"updated_at": datetime.now(UTC)}}
-    )
-    return await List.find_one(List.workspace_id == workspace_id, List.id == list_id)
+    session.add(new_item)
+    todolist.updated_at = utcnow()
+    await session.commit()
+    return await get_list_in_workspace(session, workspace_id, list_id)
 
 
 @router.patch(
@@ -170,40 +197,33 @@ async def create_list_item(
     operation_id="update_todo_item",
 )
 async def update_item_state(
-    workspace_id: PydanticObjectId,
-    list_id: PydanticObjectId,
+    workspace_id: UUID,
+    list_id: UUID,
     update: ItemUpdatePartial,
     current_user: currentUser,
+    session: SessionDep,
 ):
-    workspace = await Workspace.find_one(Workspace.id == workspace_id)
-    if not workspace or not workspace.user_id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="workspace not found"
-        )
-    todolist = await List.find_one(
-        List.workspace_id == workspace_id, List.id == list_id
+    await get_owned_workspace(session, workspace_id, current_user.id)
+    todolist = await get_list_in_workspace(session, workspace_id, list_id)
+    item = await session.scalar(
+        select(Item).where(Item.id == update.item_id, Item.list_id == todolist.id)
     )
-    if not todolist:
+    if not item:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="todo list not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="item not found"
         )
-    for item in todolist.items:
-        if item.item_id == update.item_id:
-            changes = update.model_dump(exclude={"item_id"}, exclude_unset=True)
-            if "tags" in changes:
-                changes["tags"] = normalize_tags(changes["tags"])
-            for field, value in changes.items():
-                if value is None and field in ("label", "checked"):
-                    continue
-                setattr(item, field, value)
-            item.updated_at = datetime.now(UTC)
-            todolist.updated_at = datetime.now(UTC)
-            await todolist.save()
-            return await List.find_one(
-                List.workspace_id == workspace_id, List.id == list_id
-            )
 
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="item not found")
+    changes = update.model_dump(exclude={"item_id"}, exclude_unset=True)
+    if "tags" in changes:
+        changes["tags"] = normalize_tags(changes["tags"])
+    for field, value in changes.items():
+        if value is None and field in ("label", "checked"):
+            continue
+        setattr(item, field, value)
+    item.updated_at = utcnow()
+    todolist.updated_at = utcnow()
+    await session.commit()
+    return await get_list_in_workspace(session, workspace_id, list_id)
 
 
 @router.delete(
@@ -212,32 +232,21 @@ async def update_item_state(
     operation_id="delete_todo_item",
 )
 async def delete_item(
-    workspace_id: PydanticObjectId,
-    list_id: PydanticObjectId,
-    item_id: str,
+    workspace_id: UUID,
+    list_id: UUID,
+    item_id: UUID,
     current_user: currentUser,
+    session: SessionDep,
 ):
-    workspace = await Workspace.find_one(Workspace.id == workspace_id)
-    if not workspace or not workspace.user_id == current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="workspace not found"
-        )
-    item_deleted = False
-    todolist = await List.find_one(
-        List.workspace_id == workspace_id, List.id == list_id
+    await get_owned_workspace(session, workspace_id, current_user.id)
+    todolist = await get_list_in_workspace(session, workspace_id, list_id)
+    item = await session.scalar(
+        select(Item).where(Item.id == item_id, Item.list_id == todolist.id)
     )
-    if not todolist:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="todo list not found"
-        )
-    for item in todolist.items:
-        if item.item_id == item_id:
-            todolist.items.remove(item)
-            item_deleted = True
-            await todolist.save()
-            await todolist.update({"$set": {"updated_at": datetime.now(UTC)}})
-            break
-    if not item_deleted:
+    if not item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="item not found"
         )
+    await session.delete(item)
+    todolist.updated_at = utcnow()
+    await session.commit()

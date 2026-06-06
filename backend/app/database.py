@@ -1,18 +1,33 @@
-from motor.motor_asyncio import AsyncIOMotorClient
+from typing import Annotated, AsyncGenerator
+
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+
 from app.config import settings
-from beanie import init_beanie
-from app.models import List, User, Workspace, ResetToken, ApiKey
+from app.models import Base
 
-client = AsyncIOMotorClient(host=settings.mongo_url.get_secret_value())
-
-db = client[settings.mongo_db]
+engine = create_async_engine(
+    settings.database_url.get_secret_value(), pool_pre_ping=True
+)
+SessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 
 async def init_db():
-    await init_beanie(
-        database=db, document_models=[List, User, Workspace, ResetToken, ApiKey]
-    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
 
-def close_db():
-    client.close()
+async def close_db():
+    await engine.dispose()
+
+
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    async with SessionLocal() as session:
+        yield session
+
+
+SessionDep = Annotated[AsyncSession, Depends(get_session)]
