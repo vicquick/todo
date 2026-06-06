@@ -1,6 +1,8 @@
-import { Github } from "lucide-react";
+import { Github, Moon, Sun } from "lucide-react";
 import { Logo } from "../todo/Logo";
 import { CairnMark } from "../brand/CairnMark";
+import { Button } from "../ui/button";
+import { useTheme } from "../../state/ThemeContext";
 
 export function AuthShell({
   title, subtitle, children, footer,
@@ -10,8 +12,18 @@ export function AuthShell({
   children: React.ReactNode;
   footer: React.ReactNode;
 }) {
+  const { dark, toggle } = useTheme();
   return (
-    <div className="min-h-screen grid md:grid-cols-2 bg-background text-foreground">
+    <div className="min-h-screen grid md:grid-cols-2 bg-background text-foreground relative">
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={toggle}
+        aria-label="Toggle dark mode"
+        className="absolute top-5 right-5 z-10 text-muted-foreground"
+      >
+        {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      </Button>
       {/* Form side */}
       <div className="flex flex-col px-6 sm:px-10 py-8">
         <Logo />

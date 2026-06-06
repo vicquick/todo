@@ -41,13 +41,18 @@ import { Button } from "./components/ui/button";
 import { FolderPlus, Loader2 } from "lucide-react";
 import { Priority } from "./api/mock";
 import * as api from "./api/client";
+import { ThemeProvider, useTheme } from "./state/ThemeContext";
 
 export default function App() {
-  const [dark, setDark] = useState(false);
+  return (
+    <ThemeProvider>
+      <AppRoutes />
+    </ThemeProvider>
+  );
+}
 
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-  }, [dark]);
+function AppRoutes() {
+  const { dark, toggle } = useTheme();
 
   const healthChecked = useRef(false);
   useEffect(() => {
@@ -106,7 +111,7 @@ export default function App() {
                   <ProtectedRoute>
                     <SettingsPage
                       dark={dark}
-                      onToggleDark={() => setDark((d) => !d)}
+                      onToggleDark={toggle}
                     />
                   </ProtectedRoute>
                 }
@@ -135,7 +140,7 @@ export default function App() {
                   <ProtectedRoute>
                     <Dashboard
                       dark={dark}
-                      onToggleDark={() => setDark((d) => !d)}
+                      onToggleDark={toggle}
                     />
                   </ProtectedRoute>
                 }
