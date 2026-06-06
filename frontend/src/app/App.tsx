@@ -24,6 +24,7 @@ import {
 import { LoginPage } from "./components/auth/LoginPage";
 import { SignupPage } from "./components/auth/SignupPage";
 import { ForgotPasswordPage } from "./components/auth/ForgotPasswordPage";
+import { ResetPasswordPage } from "./components/auth/ResetPasswordPage";
 import {
   ProtectedRoute,
   PublicOnlyRoute,
@@ -86,6 +87,14 @@ export default function App() {
                 element={
                   <PublicOnlyRoute>
                     <ForgotPasswordPage />
+                  </PublicOnlyRoute>
+                }
+              />
+              <Route
+                path="/reset-password"
+                element={
+                  <PublicOnlyRoute>
+                    <ResetPasswordPage />
                   </PublicOnlyRoute>
                 }
               />

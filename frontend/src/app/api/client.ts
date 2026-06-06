@@ -203,6 +203,25 @@ export async function getMe(): Promise<AuthUser> {
   return request<AuthUser>("/api/auth/me");
 }
 
+export async function forgotPassword(email: string): Promise<void> {
+  await request<void>("/api/auth/forgot-password", {
+    method: "POST",
+    auth: false,
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function resetPassword(
+  resetToken: string,
+  newPassword: string,
+): Promise<void> {
+  await request<void>("/api/auth/reset-password", {
+    method: "POST",
+    auth: false,
+    body: JSON.stringify({ reset_token: resetToken, new_password: newPassword }),
+  });
+}
+
 export async function checkHealth(): Promise<boolean> {
   try {
     const res = await fetch(`${BASE_URL}/health`);
