@@ -87,12 +87,13 @@ afterwards.
 
 ## 5. Feature roadmap (tranches — one at a time, Playwright per tranche)
 
-### M2 — Core parity (next)
-- **Subtasks**: `parent_id` on items, indent UI in project view, progress per parent.
+### M2 — Core parity (in progress)
+- ✅ **Subtasks** (shipped 2026-06-06): `parent_id` on items, one level deep, indent UI, n/m chip on parents, DB cascade.
+- ✅ **Due-date UX** (shipped 2026-06-06): row chips with overdue tint, date editor in expanded panel. Still open: Today/Upcoming smart views.
+- ✅ **Progress rings** (shipped 2026-06-06): per-project completion rings in the sidebar, completed_count in summaries.
 - **Recurring tasks**: rrule-lite fields (daily/weekly/monthly/last-day like tududi); materialize next occurrence on completion.
 - **Manual sort order**: `position` column; drag with the already-bundled react-dnd.
-- **Due-date UX**: deadline field exists — surface chips, overdue tint, Today/Upcoming smart views.
-- Required before the tududi migration (its data uses recurrence + ordering).
+- Recurrence + ordering required before the tududi migration.
 
 ### M3 — Views & structure
 - **Kanban** per project (columns = status or custom), drag between columns.
