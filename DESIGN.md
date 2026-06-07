@@ -98,8 +98,8 @@ afterwards.
 ### M3 — Views & structure
 - ✅ **Kanban** (shipped 2026-06-06): List|Board switcher per project, todo/doing/done columns (items.status, two-way synced with checked), drag between columns.
 - **Table view** (sortable columns, inline edit).
-- **Gantt** (deadline + new start_date; lightweight SVG, no heavy dep).
-- **Milestones**: named markers per project with target dates; tasks attach to a milestone; progress = checked/total.
+- ✅ **Gantt/timeline** (shipped 2026-06-07): day axis, creation→deadline bars, today line, milestone stripes; deadline-less tasks dot on today.
+- ✅ **Milestones** (shipped 2026-06-07): name + date + gruvbox color per project, flag-button dialog, stripes in the timeline. Later: attach tasks, milestone progress.
 - **Progress tracking**: per-project completion ring in sidebar; per-workspace rollup; tiny burn-down on project header.
 
 ### M4 — Media
