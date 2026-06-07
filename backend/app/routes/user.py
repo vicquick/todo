@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, status, HTTPException
+from fastapi import APIRouter, File, HTTPException, Response, UploadFile, status
 from sqlalchemy import distinct, func, select
 
 from app.schemas.user import (
@@ -14,7 +14,7 @@ from app.schemas.user import (
     ApiKeyCreate,
 )
 from app.config import settings
-from app.models import ApiKey, Item, List, User, Workspace, utcnow
+from app.models import ApiKey, Item, List, User, UserImage, Workspace, utcnow
 from app.database import SessionDep
 from app.auth import (
     hash_password,
@@ -113,6 +113,65 @@ async def change_password(
     current_user.updated_at = utcnow()
     await session.commit()
     return {"message": "password change sucessfull"}
+
+
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+MAX_IMAGE_BYTES = 3 * 1024 * 1024
+
+
+@router.put("/avatar", response_model=UserResponse, status_code=status.HTTP_200_OK)
+async def set_avatar(
+    current_user: currentUser, session: SessionDep, file: UploadFile = File(...)
+):
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="image must be jpeg, png, webp or gif",
+        )
+    data = await file.read()
+    if len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="image must be 3 MB or smaller",
+        )
+    image = await session.get(UserImage, current_user.id)
+    if image:
+        image.mime = file.content_type
+        image.data = data
+        image.updated_at = utcnow()
+    else:
+        session.add(
+            UserImage(user_id=current_user.id, mime=file.content_type, data=data)
+        )
+    current_user.avatar_mime = file.content_type
+    current_user.updated_at = utcnow()
+    await session.commit()
+    return current_user
+
+
+@router.delete("/avatar", response_model=UserResponse, status_code=status.HTTP_200_OK)
+async def delete_avatar(current_user: currentUser, session: SessionDep):
+    image = await session.get(UserImage, current_user.id)
+    if image:
+        await session.delete(image)
+    current_user.avatar_mime = None
+    current_user.updated_at = utcnow()
+    await session.commit()
+    return current_user
+
+
+@router.get("/avatar")
+async def fetch_avatar(current_user: currentUser, session: SessionDep):
+    image = await session.get(UserImage, current_user.id)
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="no avatar set"
+        )
+    return Response(
+        content=image.data,
+        media_type=image.mime,
+        headers={"Cache-Control": "private, max-age=60"},
+    )
 
 
 @router.get("/tags", status_code=status.HTTP_200_OK, operation_id="list_tags")

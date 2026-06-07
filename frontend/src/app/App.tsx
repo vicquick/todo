@@ -375,7 +375,7 @@ function Dashboard({
 
   const onAddItem = async (
     label: string,
-    opts: { priority?: Priority; tags?: string[]; description?: string; parentId?: string } = {},
+    opts: { priority?: Priority; tags?: string[]; description?: string; parentId?: string; deadline?: string } = {},
   ) => {
     if (!selectedId || !wsId) return;
     setAddingItem(true);
@@ -386,6 +386,7 @@ function Dashboard({
         tags: opts.tags,
         description: opts.description ?? null,
         parent_id: opts.parentId ?? null,
+        deadline: opts.deadline ?? null,
       });
       setItemsByList((m) => ({ ...m, [list.id]: items }));
       setLists((ls) => ls.map((l) => (l.id === list.id ? list : l)));

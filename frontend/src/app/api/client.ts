@@ -85,7 +85,20 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
 
 // ───── Types (server shapes + UI shapes) ───────────────────
 
-export type AuthUser = { id: string; username: string; email: string };
+export type AuthUser = {
+  id: string;
+  username: string;
+  email: string;
+  avatar_mime?: string | null;
+};
+
+export type Milestone = {
+  id: string;
+  name: string;
+  date: string;
+  color?: string | null;
+  created_at?: string;
+};
 
 export type Workspace = {
   id: string;
@@ -107,6 +120,7 @@ export type ServerItem = {
   tags?: string[];
   description?: string | null;
   deadline?: string | null;
+  created_at?: string;
 };
 
 export type ServerList = {
@@ -145,6 +159,7 @@ export function toTodoItem(i: ServerItem): TodoItem {
     parentId: i.parent_id ?? null,
     label: i.label,
     checked: !!i.checked,
+    createdAt: i.created_at ?? null,
     status: (i.status ?? (i.checked ? "done" : "todo")) as TodoItem["status"],
     position: i.position ?? 0,
     recurrence: (i.recurrence ?? null) as TodoItem["recurrence"],
@@ -410,6 +425,60 @@ export async function removeListImage(
   return { list: toTodoList(data), items: (data.items ?? []).map(toTodoItem) };
 }
 
+export async function fetchMilestones(
+  workspaceId: string,
+  listId: string,
+): Promise<Milestone[]> {
+  return request<Milestone[]>(
+    `/api/workspaces/${workspaceId}/lists/${listId}/milestones`,
+  );
+}
+
+export async function createMilestone(
+  workspaceId: string,
+  listId: string,
+  data: { name: string; date: string; color?: string | null },
+): Promise<Milestone> {
+  return request<Milestone>(
+    `/api/workspaces/${workspaceId}/lists/${listId}/milestones`,
+    { method: "POST", body: JSON.stringify(data) },
+  );
+}
+
+export async function deleteMilestone(
+  workspaceId: string,
+  listId: string,
+  milestoneId: string,
+): Promise<void> {
+  await request<void>(
+    `/api/workspaces/${workspaceId}/lists/${listId}/milestones/${milestoneId}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function uploadAvatar(file: File): Promise<AuthUser> {
+  const fd = new FormData();
+  fd.append("file", file);
+  return request<AuthUser>("/api/user/avatar", {
+    method: "PUT",
+    body: fd,
+    form: true,
+  });
+}
+
+export async function removeAvatar(): Promise<AuthUser> {
+  return request<AuthUser>("/api/user/avatar", { method: "DELETE" });
+}
+
+export async function fetchAvatar(): Promise<Blob> {
+  const t = tokenStore.get();
+  const res = await fetch(`${BASE_URL}/api/user/avatar`, {
+    headers: t ? { Authorization: `Bearer ${t}` } : {},
+  });
+  if (!res.ok) throw new ApiError(res.status, "Couldn't load avatar");
+  return res.blob();
+}
+
 export async function fetchListImage(
   workspaceId: string,
   listId: string,
@@ -433,6 +502,7 @@ export type ItemCreatePayload = {
   description?: string | null;
   parent_id?: string | null;
   recurrence?: string | null;
+  deadline?: string | null;
 };
 
 export type ItemPatchPayload = {
@@ -459,6 +529,7 @@ export async function createItem(
   if (payload.description) body.description = payload.description;
   if (payload.parent_id) body.parent_id = payload.parent_id;
   if (payload.recurrence) body.recurrence = payload.recurrence;
+  if (payload.deadline) body.deadline = payload.deadline;
   const data = await request<ServerList>(
     `/api/workspaces/${workspaceId}/lists/${listId}/items`,
     {

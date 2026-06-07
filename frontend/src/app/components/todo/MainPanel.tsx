@@ -7,7 +7,8 @@ import {
   Filter as FilterIcon, Pencil, X, ChevronDown, ChevronRight,
   CheckCheck, CircleDashed, ListChecks, Eraser, Square, CheckSquare, Tag as TagIcon, Flag,
   AlignLeft, Image as ImageIcon, CornerDownRight, Repeat, GripVertical,
-  List as ListViewIcon, Columns3 as BoardViewIcon,
+  List as ListViewIcon, Columns3 as BoardViewIcon, CalendarRange as GanttViewIcon,
+  ListTree, Flag as FlagIcon,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -18,7 +19,11 @@ import {
 } from "../ui/dropdown-menu";
 import { TodoList } from "./Sidebar";
 import { Board, BoardStatus } from "./Board";
+import { Gantt } from "./Gantt";
+import { MilestonesDialog } from "./MilestonesDialog";
 import { LoadingPanel, EmptyItems, ErrorPanel } from "./States";
+import * as api from "../../api/client";
+import type { Milestone } from "../../api/client";
 import { Priority, PRIORITY_META, Tag, tagColorVar, tagFromName } from "../../api/mock";
 import { PriorityChip, PrioritySelect, TagChip, TagSelect } from "./Chips";
 
@@ -29,6 +34,7 @@ export type TodoItem = {
   parentId?: string | null;
   label: string;
   checked: boolean;
+  createdAt?: string | null;
   status?: "todo" | "doing" | "done";
   position?: number;
   recurrence?: Recurrence | null;
@@ -69,7 +75,7 @@ type Props = {
   error?: string | null;
   adding?: boolean;
 
-  onAdd: (label: string, opts: { priority?: Priority; tags?: string[]; description?: string; parentId?: string }) => void;
+  onAdd: (label: string, opts: { priority?: Priority; tags?: string[]; description?: string; parentId?: string; deadline?: string }) => void;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onRenameItem: (id: string, label: string) => void;
@@ -153,6 +159,7 @@ export function MainPanel({
   const [newTags, setNewTags] = useState<string[]>([]);
   const [newDescOpen, setNewDescOpen] = useState(false);
   const [newDesc, setNewDesc] = useState("");
+  const [newDeadline, setNewDeadline] = useState("");
 
   // selection
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -176,9 +183,10 @@ export function MainPanel({
       priority: newPriority,
       tags: newTags.length ? newTags : undefined,
       description: newDesc.trim() ? newDesc.trim() : undefined,
+      deadline: newDeadline ? new Date(`${newDeadline}T12:00:00`).toISOString() : undefined,
     });
     setLabel(""); setTouched(false);
-    setNewPriority(undefined); setNewTags([]); setNewDesc(""); setNewDescOpen(false);
+    setNewPriority(undefined); setNewTags([]); setNewDesc(""); setNewDescOpen(false); setNewDeadline("");
   };
 
   const submitTitle = (e?: React.FormEvent) => {
@@ -227,30 +235,54 @@ export function MainPanel({
   }, [items, filter, tagFilter]);
 
   const [subtaskFor, setSubtaskFor] = useState<string | null>(null);
+  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
+  const toggleParent = (id: string) =>
+    setExpandedParents((s) => {
+      const n = new Set(s);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  useEffect(() => { setExpandedParents(new Set()); setSubtaskFor(null); }, [list.id]);
 
-  // view: list | board, remembered per project
-  const [view, setView] = useState<"list" | "board">("list");
+  // milestones (shown in the timeline view)
+  const [milestones, setMilestones] = useState<Milestone[]>([]);
+  const [milestonesOpen, setMilestonesOpen] = useState(false);
+  const loadMilestones = () => {
+    api.fetchMilestones(wsId, list.id).then(setMilestones).catch(() => setMilestones([]));
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadMilestones(); }, [wsId, list.id]);
+
+  // view: list | board | gantt, remembered per project
+  const [view, setView] = useState<"list" | "board" | "gantt">("list");
   useEffect(() => {
     try {
       const v = localStorage.getItem(`cairn.view.${list.id}`);
-      setView(v === "board" ? "board" : "list");
+      setView(v === "board" || v === "gantt" ? v : "list");
     } catch { setView("list"); }
   }, [list.id]);
-  const switchView = (v: "list" | "board") => {
+  const switchView = (v: "list" | "board" | "gantt") => {
     setView(v);
     try { localStorage.setItem(`cairn.view.${list.id}`, v); } catch {}
   };
 
   const reorderable = view === "list" && filter === "all" && tagFilter.length === 0;
   const roots = useMemo(() => items.filter((i) => !i.parentId), [items]);
-  const onReorder = (draggedId: string, targetId: string) => {
+  const onReorder = (draggedId: string, targetId: string, gap: "above" | "below") => {
     if (draggedId === targetId) return;
-    const ordered = [...roots].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    const ordered = [...roots]
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+      .filter((i) => i.id !== draggedId);
     const targetIdx = ordered.findIndex((i) => i.id === targetId);
     if (targetIdx < 0) return;
-    const prev = ordered.filter((i) => i.id !== draggedId)[ordered.filter((i) => i.id !== draggedId).findIndex((i) => i.id === targetId) - 1];
-    const target = ordered[targetIdx];
-    const newPos = prev ? ((prev.position ?? 0) + (target.position ?? 0)) / 2 : (target.position ?? 0) - 1;
+    const insertIdx = gap === "above" ? targetIdx : targetIdx + 1;
+    const prev = ordered[insertIdx - 1];
+    const next = ordered[insertIdx];
+    let newPos: number;
+    if (prev && next) newPos = ((prev.position ?? 0) + (next.position ?? 0)) / 2;
+    else if (next) newPos = (next.position ?? 0) - 1;
+    else if (prev) newPos = (prev.position ?? 0) + 1;
+    else return;
     onPatchItem(draggedId, { position: newPos });
   };
 
@@ -367,7 +399,17 @@ export function MainPanel({
                 className={`rounded-md p-1.5 transition-colors ${view === "board" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
                 <BoardViewIcon className="size-4" />
               </button>
+              <button role="tab" aria-selected={view === "gantt"} onClick={() => switchView("gantt")}
+                title="Timeline view"
+                className={`rounded-md p-1.5 transition-colors ${view === "gantt" ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+                <GanttViewIcon className="size-4" />
+              </button>
             </div>
+            <Button variant="ghost" size="icon" onClick={() => setMilestonesOpen(true)}
+              title="Milestones" aria-label="Milestones"
+              className={milestones.length ? "text-primary" : "text-muted-foreground"}>
+              <FlagIcon className="size-4" />
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => setEditingTitle(true)} className="text-muted-foreground hover:text-foreground gap-1.5">
               <Pencil className="size-4" /> Rename
             </Button>
@@ -444,6 +486,16 @@ export function MainPanel({
             <div className="border-t border-border px-3 py-2 flex items-center gap-2 flex-wrap">
               <PrioritySelect value={newPriority} onChange={setNewPriority} />
               <TagSelect tags={tags} value={newTags} onChange={setNewTags} onCreateTag={onCreateTag} />
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs text-muted-foreground">
+                <Calendar className="size-3.5" />
+                <input type="date" value={newDeadline} onChange={(e) => setNewDeadline(e.target.value)}
+                  aria-label="Due date (optional)"
+                  className="bg-transparent outline-none text-foreground w-[7.5rem]" />
+                {newDeadline && (
+                  <button type="button" onClick={() => setNewDeadline("")} aria-label="Clear due date"
+                    className="hover:text-foreground"><X className="size-3" /></button>
+                )}
+              </span>
               <button type="button"
                 onClick={() => setNewDescOpen((o) => !o)}
                 className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-xs hover:bg-muted/60 transition-colors text-muted-foreground"
@@ -552,6 +604,8 @@ export function MainPanel({
               onMove={(id, status: BoardStatus, position) => onPatchItem(id, { status, position })}
               onToggle={onToggle}
             />
+          ) : view === "gantt" ? (
+            <Gantt items={roots} milestones={milestones} accent={accentVar[list.accent]} />
           ) : items.length === 0 ? (
             <EmptyItems listName={list.name} />
           ) : filtered.length === 0 ? (
@@ -562,7 +616,9 @@ export function MainPanel({
             <ul className="space-y-1.5">
               <AnimatePresence initial={false}>
                 {filtered.map((it) => {
-                  const kids = childrenByParent[it.id] ?? [];
+                  const allKids = childrenByParent[it.id] ?? [];
+                  const kidsExpanded = expandedParents.has(it.id) || subtaskFor === it.id;
+                  const kids = kidsExpanded ? allKids : [];
                   return [
                     <ItemRow
                       key={it.id}
@@ -571,14 +627,19 @@ export function MainPanel({
                       accent={accentVar[list.accent]}
                       isSelected={selected.has(it.id)}
                       anySelected={anySelected}
-                      subtaskStats={kids.length ? { done: kids.filter((k) => k.checked).length, total: kids.length } : undefined}
+                      subtaskStats={allKids.length ? { done: allKids.filter((k) => k.checked).length, total: allKids.length } : undefined}
+                      subtasksExpanded={kidsExpanded}
+                      onToggleSubtasks={() => toggleParent(it.id)}
                       onSelectToggle={() => toggleSelect(it.id)}
                       onToggle={() => onToggle(it.id)}
                       onDelete={() => onDelete(it.id)}
                       onRename={(label) => onRenameItem(it.id, label)}
                       onPatch={(patch) => onPatchItem(it.id, patch)}
                       onCreateTag={onCreateTag}
-                      onAddSubtask={() => setSubtaskFor(subtaskFor === it.id ? null : it.id)}
+                      onAddSubtask={() => {
+                        setSubtaskFor(subtaskFor === it.id ? null : it.id);
+                        setExpandedParents((s) => new Set(s).add(it.id));
+                      }}
                       reorderable={reorderable}
                       onReorder={onReorder}
                     />,
@@ -614,6 +675,15 @@ export function MainPanel({
           )}
         </div>
       </div>
+
+      <MilestonesDialog
+        open={milestonesOpen}
+        onOpenChange={setMilestonesOpen}
+        wsId={wsId}
+        listId={list.id}
+        milestones={milestones}
+        onChanged={loadMilestones}
+      />
 
       {/* Bulk action toolbar */}
       <AnimatePresence>
@@ -705,6 +775,7 @@ function deadlineMeta(item: TodoItem): { text: string; overdue: boolean } | null
 
 function ItemRow({
   item, tags, accent, isSelected, anySelected, isChild, subtaskStats,
+  subtasksExpanded, onToggleSubtasks,
   onSelectToggle, onToggle, onDelete, onRename, onPatch, onCreateTag, onAddSubtask,
   reorderable, onReorder,
 }: {
@@ -715,6 +786,8 @@ function ItemRow({
   anySelected: boolean;
   isChild?: boolean;
   subtaskStats?: { done: number; total: number };
+  subtasksExpanded?: boolean;
+  onToggleSubtasks?: () => void;
   onSelectToggle: () => void;
   onToggle: () => void;
   onDelete: () => void;
@@ -723,8 +796,12 @@ function ItemRow({
   onCreateTag?: (name: string) => Promise<any>;
   onAddSubtask?: () => void;
   reorderable?: boolean;
-  onReorder?: (draggedId: string, targetId: string) => void;
+  onReorder?: (draggedId: string, targetId: string, gap: "above" | "below") => void;
 }) {
+  const liRef = useRef<HTMLLIElement | null>(null);
+  const gapRef = useRef<"above" | "below">("above");
+  const [gap, setGap] = useState<"above" | "below" | null>(null);
+
   const [{ isDragging }, dragRef, previewRef] = useDrag(
     () => ({
       type: "list-row",
@@ -738,11 +815,21 @@ function ItemRow({
     () => ({
       accept: "list-row",
       canDrop: () => !!reorderable && !isChild,
-      drop: (d: { id: string }) => onReorder?.(d.id, item.id),
+      hover: (_d, monitor) => {
+        const node = liRef.current;
+        const offset = monitor.getClientOffset();
+        if (!node || !offset) return;
+        const rect = node.getBoundingClientRect();
+        const half = offset.y < rect.top + rect.height / 2 ? "above" : "below";
+        gapRef.current = half;
+        setGap(half);
+      },
+      drop: (d: { id: string }) => onReorder?.(d.id, item.id, gapRef.current),
       collect: (m) => ({ isOverRow: m.isOver() && m.canDrop() }),
     }),
     [item.id, reorderable, isChild, onReorder],
   );
+  useEffect(() => { if (!isOverRow) setGap(null); }, [isOverRow]);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.label);
   const [expanded, setExpanded] = useState(false);
@@ -774,13 +861,14 @@ function ItemRow({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: 12, height: 0, marginTop: 0, paddingTop: 0, paddingBottom: 0 }}
       transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
-      ref={(node) => { dropRef(node as any); previewRef(node as any); }}
+      ref={(node) => { liRef.current = node as HTMLLIElement | null; dropRef(node as any); previewRef(node as any); }}
       className={`group rounded-xl border bg-card shadow-soft-sm hover:shadow-soft-md transition-all ${
         isSelected ? "border-ring/60 ring-1 ring-ring/30" : "border-border"
       } ${isChild ? "ml-9 border-l-2" : ""} ${isDragging ? "opacity-40" : ""}`}
       style={{
         ...(isChild ? { borderLeftColor: `color-mix(in oklab, ${accent} 45%, transparent)` } : {}),
-        ...(isOverRow ? { boxShadow: `0 -2px 0 0 ${accent}` } : {}),
+        ...(isOverRow && gap === "above" ? { boxShadow: `0 -4px 0 -1px ${accent}, 0 -7px 8px -6px ${accent}` } : {}),
+        ...(isOverRow && gap === "below" ? { boxShadow: `0 4px 0 -1px ${accent}, 0 7px 8px -6px ${accent}` } : {}),
       }}
     >
       <div className="px-4 py-3 flex items-center gap-3">
@@ -866,10 +954,25 @@ function ItemRow({
         {/* inline meta (priority + tags + due + subtasks) */}
         <div className="flex items-center gap-1 flex-wrap shrink-0">
           {subtaskStats && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-border px-1.5 py-0.5 text-[0.65rem] font-mono text-muted-foreground tabular-nums"
-              title={`${subtaskStats.done} of ${subtaskStats.total} subtasks done`}>
-              <CornerDownRight className="size-3" /> {subtaskStats.done}/{subtaskStats.total}
-            </span>
+            <button
+              type="button"
+              onClick={onToggleSubtasks}
+              aria-expanded={subtasksExpanded}
+              title={subtasksExpanded ? "Hide subtasks" : `Show ${subtaskStats.total} subtasks (${subtaskStats.done} done)`}
+              className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[0.65rem] font-mono tabular-nums transition-colors ${
+                subtasksExpanded
+                  ? "text-foreground"
+                  : "border-border text-muted-foreground hover:text-foreground hover:border-border-strong"
+              }`}
+              style={subtasksExpanded ? {
+                color: accent,
+                borderColor: `color-mix(in oklab, ${accent} 45%, transparent)`,
+                background: `color-mix(in oklab, ${accent} 10%, transparent)`,
+              } : undefined}
+            >
+              <ListTree className="size-3" /> {subtaskStats.done}/{subtaskStats.total}
+              <ChevronRight className={`size-2.5 transition-transform ${subtasksExpanded ? "rotate-90" : ""}`} />
+            </button>
           )}
           {(() => {
             const due = deadlineMeta(item);

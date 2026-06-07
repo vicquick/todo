@@ -41,6 +41,7 @@ class User(Base, TimestampMixin):
     username: Mapped[str] = mapped_column(String(30), unique=True, index=True)
     email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(Text)
+    avatar_mime: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class Workspace(Base, TimestampMixin):
@@ -104,6 +105,35 @@ class Item(Base, TimestampMixin):
     deadline: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+
+class UserImage(Base):
+    """Profile picture, stored in the database so it rides pg_dump backups."""
+
+    __tablename__ = "user_images"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    mime: Mapped[str] = mapped_column(String(64))
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
+class Milestone(Base, TimestampMixin):
+    __tablename__ = "milestones"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    list_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("lists.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(100))
+    date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    color: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
 
 class ListImage(Base):

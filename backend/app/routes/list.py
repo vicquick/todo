@@ -11,8 +11,17 @@ from app.schemas.list import (
     ItemCreate,
     ListUpdate,
     ItemUpdatePartial,
+    MilestoneCreate,
+    MilestoneResponse,
 )
-from app.models import Item, List as ListModel, ListImage, Workspace, utcnow
+from app.models import (
+    Item,
+    List as ListModel,
+    ListImage,
+    Milestone,
+    Workspace,
+    utcnow,
+)
 from app.database import SessionDep
 from app.utils import advance_deadline, normalize_tags
 from app.auth import currentUser
@@ -170,6 +179,76 @@ async def delete_lists(
     await get_owned_workspace(session, workspace_id, current_user.id)
     todolist = await get_list_in_workspace(session, workspace_id, list_id)
     await session.delete(todolist)
+    await session.commit()
+
+
+@router.get(
+    "/workspaces/{workspace_id}/lists/{list_id}/milestones",
+    response_model=list[MilestoneResponse],
+    status_code=status.HTTP_200_OK,
+    operation_id="list_milestones",
+)
+async def fetch_milestones(
+    workspace_id: UUID,
+    list_id: UUID,
+    current_user: currentUser,
+    session: SessionDep,
+):
+    await get_owned_workspace(session, workspace_id, current_user.id)
+    todolist = await get_list_in_workspace(session, workspace_id, list_id)
+    result = await session.scalars(
+        select(Milestone).where(Milestone.list_id == todolist.id).order_by(Milestone.date)
+    )
+    return result.all()
+
+
+@router.post(
+    "/workspaces/{workspace_id}/lists/{list_id}/milestones",
+    response_model=MilestoneResponse,
+    status_code=status.HTTP_201_CREATED,
+    operation_id="create_milestone",
+)
+async def create_milestone(
+    workspace_id: UUID,
+    list_id: UUID,
+    data: MilestoneCreate,
+    current_user: currentUser,
+    session: SessionDep,
+):
+    await get_owned_workspace(session, workspace_id, current_user.id)
+    todolist = await get_list_in_workspace(session, workspace_id, list_id)
+    milestone = Milestone(
+        list_id=todolist.id, name=data.name, date=data.date, color=data.color
+    )
+    session.add(milestone)
+    await session.commit()
+    return milestone
+
+
+@router.delete(
+    "/workspaces/{workspace_id}/lists/{list_id}/milestones/{milestone_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    operation_id="delete_milestone",
+)
+async def delete_milestone(
+    workspace_id: UUID,
+    list_id: UUID,
+    milestone_id: UUID,
+    current_user: currentUser,
+    session: SessionDep,
+):
+    await get_owned_workspace(session, workspace_id, current_user.id)
+    todolist = await get_list_in_workspace(session, workspace_id, list_id)
+    milestone = await session.scalar(
+        select(Milestone).where(
+            Milestone.id == milestone_id, Milestone.list_id == todolist.id
+        )
+    )
+    if not milestone:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="milestone not found"
+        )
+    await session.delete(milestone)
     await session.commit()
 
 

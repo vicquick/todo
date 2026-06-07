@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import {
   ArrowLeft, User, Shield, Settings2, Hash, Loader2,
@@ -163,6 +163,87 @@ function MaskedField({ label, value, mono = false }: { label: string; value: str
   );
 }
 
+function AvatarSection() {
+  const { user, refreshMe } = useAuth();
+  const [url, setUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    let objectUrl: string | null = null;
+    if (user?.avatar_mime) {
+      api.fetchAvatar().then((blob) => {
+        if (!alive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      }).catch(() => alive && setUrl(null));
+    } else {
+      setUrl(null);
+    }
+    return () => { alive = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [user?.avatar_mime]);
+
+  const pick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      toast.error("Image too large", { description: "3 MB maximum." });
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.uploadAvatar(file);
+      await refreshMe();
+      toast.success("Profile picture updated");
+    } catch (err: any) {
+      toast.error("Couldn't upload picture", { description: err?.message });
+    } finally { setBusy(false); }
+  };
+
+  const remove = async () => {
+    setBusy(true);
+    try {
+      await api.removeAvatar();
+      await refreshMe();
+      toast.success("Profile picture removed");
+    } catch (err: any) {
+      toast.error("Couldn't remove picture", { description: err?.message });
+    } finally { setBusy(false); }
+  };
+
+  const initial = user?.username?.[0]?.toUpperCase() ?? "?";
+
+  return (
+    <div className="flex items-center gap-4">
+      <input ref={inputRef} type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={pick} />
+      <button type="button" onClick={() => inputRef.current?.click()}
+        title="Change profile picture"
+        className="size-16 rounded-2xl overflow-hidden grid place-items-center shrink-0 border border-border shadow-soft-sm font-display text-2xl text-primary-foreground"
+        style={url ? {} : { background: "linear-gradient(135deg, var(--gb-orange) 0%, var(--gb-purple) 100%)" }}>
+        {url ? <img src={url} alt="Profile" className="size-full object-cover" /> : initial}
+      </button>
+      <div className="space-y-1.5">
+        <div className="flex gap-2">
+          <Button type="button" size="sm" variant="secondary" disabled={busy}
+            onClick={() => inputRef.current?.click()}>
+            {busy ? <Loader2 className="size-3.5 animate-spin" /> : (url ? "Change picture" : "Upload picture")}
+          </Button>
+          {url && (
+            <Button type="button" size="sm" variant="ghost" disabled={busy}
+              className="text-muted-foreground hover:text-destructive" onClick={remove}>
+              Remove
+            </Button>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">JPEG, PNG, WebP or GIF — 3 MB max.</p>
+      </div>
+    </div>
+  );
+}
+
 function ProfileTab() {
   const { user, refreshMe } = useAuth();
   const [username, setUsername] = useState(user?.username ?? "");
@@ -193,7 +274,10 @@ function ProfileTab() {
   };
 
   return (
-    <SectionCard title="Profile" description="Update your username and email.">
+    <SectionCard title="Profile" description="Your picture, username and email.">
+      <div className="pb-4 mb-4 border-b border-border">
+        <AvatarSection />
+      </div>
       <form onSubmit={submit} className="space-y-4">
         <div className="grid sm:grid-cols-2 gap-4">
           <div>

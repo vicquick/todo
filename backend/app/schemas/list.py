@@ -71,6 +71,25 @@ class ItemUpdatePartial(BaseModel):
     deadline: datetime | None = Field(default=None)
 
 
+MilestoneColor = Literal["orange", "aqua", "purple", "blue", "yellow", "green"]
+
+
+class MilestoneCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    date: datetime
+    color: MilestoneColor | None = Field(default=None)
+
+
+class MilestoneResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    date: datetime
+    color: str | None = None
+    created_at: datetime
+
+
 class ItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
