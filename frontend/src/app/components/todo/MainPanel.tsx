@@ -387,7 +387,7 @@ export function MainPanel({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 max-md:w-full max-md:order-last">
             <div className="flex items-center rounded-lg border border-border bg-card p-0.5" role="tablist" aria-label="View">
               <button role="tab" aria-selected={view === "list"} onClick={() => switchView("list")}
                 title="List view"
@@ -871,7 +871,7 @@ function ItemRow({
         ...(isOverRow && gap === "below" ? { boxShadow: `0 4px 0 -1px ${accent}, 0 7px 8px -6px ${accent}` } : {}),
       }}
     >
-      <div className="px-4 py-3 flex items-center gap-3">
+      <div className="px-4 py-3 flex items-center gap-3 max-md:flex-wrap">
         {reorderable && !isChild && (
           <button
             ref={dragRef as any}
@@ -951,8 +951,8 @@ function ItemRow({
           </button>
         )}
 
-        {/* inline meta (priority + tags + due + subtasks) */}
-        <div className="flex items-center gap-1 flex-wrap shrink-0">
+        {/* inline meta (priority + tags + due + subtasks) — own line on phones so the label keeps its width */}
+        <div className="flex items-center gap-1 flex-wrap shrink-0 max-md:w-full max-md:order-last max-md:ml-7 max-md:-mt-1 max-md:empty:hidden">
           {subtaskStats && (
             <button
               type="button"
