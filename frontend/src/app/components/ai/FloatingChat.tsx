@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { Sparkles, X, Minus, Maximize2, Loader2 } from "lucide-react";
 import { Button } from "../ui/button";
 import { useAI } from "../../state/AIContext";
+import { useIsMobile } from "../ui/use-mobile";
 
 const ChatBody = lazy(() => import("./ChatBody").then((m) => ({ default: m.ChatBody })));
 
@@ -25,6 +26,7 @@ function readSize(): Size {
 
 export function FloatingChat() {
   const { ai } = useAI();
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(() => {
     try { return localStorage.getItem(OPEN_KEY) === "1"; } catch { return false; }
   });
@@ -69,19 +71,35 @@ export function FloatingChat() {
     );
   }
 
+  // On a phone the floating panel becomes a full-screen sheet.
+  const mobileStyle: React.CSSProperties = {
+    inset: 0,
+    width: "100%",
+    height: "100dvh",
+    maxWidth: "100vw",
+    maxHeight: "100dvh",
+    borderRadius: 0,
+    resize: "none",
+    backdropFilter: "blur(10px)",
+    background: "color-mix(in oklab, var(--popover) 94%, transparent)",
+  };
+  const desktopStyle: React.CSSProperties = {
+    width: collapsed ? 320 : size.w,
+    height: collapsed ? "auto" : size.h,
+    minWidth: 300, minHeight: collapsed ? undefined : 320,
+    maxWidth: "calc(100vw - 24px)", maxHeight: "calc(100vh - 24px)",
+    resize: collapsed ? "none" : "both",
+    backdropFilter: "blur(10px)",
+    background: "color-mix(in oklab, var(--popover) 94%, transparent)",
+  };
+
   return (
     <div
-      className="fixed bottom-5 right-5 z-40 flex flex-col rounded-xl border border-border bg-popover shadow-soft-lg overflow-hidden"
-      style={{
-        width: collapsed ? 320 : size.w,
-        height: collapsed ? "auto" : size.h,
-        minWidth: 300, minHeight: collapsed ? undefined : 320,
-        maxWidth: "calc(100vw - 24px)", maxHeight: "calc(100vh - 24px)",
-        resize: collapsed ? "none" : "both",
-        backdropFilter: "blur(10px)",
-        background: "color-mix(in oklab, var(--popover) 94%, transparent)",
-      }}
-      onMouseUp={collapsed ? undefined : onPanelMouseUp}
+      className={`fixed z-40 flex flex-col border border-border bg-popover shadow-soft-lg overflow-hidden ${
+        isMobile ? "" : "bottom-5 right-5 rounded-xl"
+      }`}
+      style={isMobile ? mobileStyle : desktopStyle}
+      onMouseUp={collapsed || isMobile ? undefined : onPanelMouseUp}
       role="dialog"
       aria-label="AI assistant"
     >
@@ -97,7 +115,7 @@ export function FloatingChat() {
         </span>
         <div className="ml-auto flex items-center gap-0.5">
           <Button
-            variant="ghost" size="icon" className="size-7"
+            variant="ghost" size="icon" className="size-7 hidden md:inline-flex"
             aria-label={collapsed ? "Expand" : "Collapse"}
             onClick={() => setCollapsed((c) => !c)}
           >
@@ -112,7 +130,7 @@ export function FloatingChat() {
         </div>
       </header>
 
-      {!collapsed && (
+      {(!collapsed || isMobile) && (
         <div className="flex-1 min-h-0 flex flex-col">
           <Suspense fallback={
             <div className="flex-1 grid place-items-center text-muted-foreground">

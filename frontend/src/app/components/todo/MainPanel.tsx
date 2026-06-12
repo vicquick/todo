@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { DndProvider, useDrag, useDrop } from "react-dnd";
-import { HTML5Backend } from "react-dnd-html5-backend";
+import { useDrag, useDrop } from "react-dnd";
+import { DndRoot } from "../../dnd";
 import {
   Plus, Trash2, Loader2, Check, MoreHorizontal, Calendar,
   Filter as FilterIcon, Pencil, X, ChevronDown, ChevronRight,
@@ -306,7 +306,7 @@ export function MainPanel({
   const anySelected = selectedCount > 0;
 
   return (
-    <DndProvider backend={HTML5Backend}>
+    <DndRoot>
     <section className="h-full overflow-y-auto relative">
       <div className="max-w-3xl mx-auto px-6 md:px-10 py-8 md:py-12 pb-32">
         {/* Header */}
@@ -410,7 +410,7 @@ export function MainPanel({
               className={milestones.length ? "text-primary" : "text-muted-foreground"}>
               <FlagIcon className="size-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setEditingTitle(true)} className="text-muted-foreground hover:text-foreground gap-1.5">
+            <Button variant="ghost" size="sm" onClick={() => setEditingTitle(true)} className="hidden sm:inline-flex text-muted-foreground hover:text-foreground gap-1.5">
               <Pencil className="size-4" /> Rename
             </Button>
             <DropdownMenu>
@@ -697,16 +697,16 @@ export function MainPanel({
           >
             <div className="rounded-xl border border-border bg-popover shadow-soft-lg flex items-center gap-1 px-2 py-1.5"
               style={{ backdropFilter: "blur(8px)", background: "color-mix(in oklab, var(--popover) 92%, transparent)" }}>
-              <span className="px-2 py-1 text-sm font-medium">{selectedCount} selected</span>
+              <span className="px-2 py-1 text-sm font-medium whitespace-nowrap">{selectedCount}<span className="hidden sm:inline"> selected</span></span>
               <span aria-hidden className="h-5 w-px bg-border-strong mx-1" />
-              <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => { onBulkSetChecked(selectedIds, true); clearSelection(); }}>
-                <Check className="size-4" /> Mark complete
+              <Button variant="ghost" size="sm" className="gap-1.5" aria-label="Mark complete" onClick={() => { onBulkSetChecked(selectedIds, true); clearSelection(); }}>
+                <Check className="size-4" /> <span className="hidden sm:inline">Mark complete</span>
               </Button>
-              <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => { onBulkSetChecked(selectedIds, false); clearSelection(); }}>
-                <CircleDashed className="size-4" /> Mark incomplete
+              <Button variant="ghost" size="sm" className="gap-1.5" aria-label="Mark incomplete" onClick={() => { onBulkSetChecked(selectedIds, false); clearSelection(); }}>
+                <CircleDashed className="size-4" /> <span className="hidden sm:inline">Mark incomplete</span>
               </Button>
-              <Button variant="ghost" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={() => { onBulkDelete(selectedIds); clearSelection(); }}>
-                <Trash2 className="size-4" /> Delete
+              <Button variant="ghost" size="sm" className="gap-1.5 text-destructive hover:text-destructive" aria-label="Delete selected" onClick={() => { onBulkDelete(selectedIds); clearSelection(); }}>
+                <Trash2 className="size-4" /> <span className="hidden sm:inline">Delete</span>
               </Button>
               <span aria-hidden className="h-5 w-px bg-border-strong mx-1" />
               <Button variant="ghost" size="icon" aria-label="Cancel selection" onClick={clearSelection}>
@@ -717,7 +717,7 @@ export function MainPanel({
         )}
       </AnimatePresence>
     </section>
-    </DndProvider>
+    </DndRoot>
   );
 }
 
@@ -877,7 +877,7 @@ function ItemRow({
             ref={dragRef as any}
             type="button"
             aria-label="Drag to reorder"
-            className="cursor-grab active:cursor-grabbing -ml-1.5 -mr-1 p-0.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+            className="cursor-grab active:cursor-grabbing touch-none -ml-1.5 -mr-1 p-0.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 max-md:opacity-100 transition-opacity shrink-0"
           >
             <GripVertical className="size-4" />
           </button>
@@ -1014,7 +1014,7 @@ function ItemRow({
           <DropdownMenuTrigger asChild>
             <button
               aria-label={`More for ${item.label}`}
-              className="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/60"
+              className="opacity-0 group-hover:opacity-100 focus:opacity-100 max-md:opacity-100 transition-opacity rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/60"
             >
               <MoreHorizontal className="size-3.5" />
             </button>

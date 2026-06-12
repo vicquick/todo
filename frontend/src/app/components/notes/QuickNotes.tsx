@@ -28,6 +28,7 @@ import {
 } from "../ui/popover";
 import * as api from "../../api/client";
 import type { TodoList } from "../todo/Sidebar";
+import { useIsMobile } from "../ui/use-mobile";
 
 // ───── persistence ─────────────────────────────────────────
 
@@ -90,6 +91,7 @@ type Props = {
 };
 
 export function QuickNotes({ open, onOpenChange, wsId, projects, onTasksAdded }: Props) {
+  const isMobile = useIsMobile();
   const [state, setState] = useState<NotesState>(loadState);
   const [selRange, setSelRange] = useState<{ start: number; end: number } | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
@@ -227,9 +229,11 @@ export function QuickNotes({ open, onOpenChange, wsId, projects, onTasksAdded }:
   const endResize = () => (sizeFrom.current = null);
 
   const pos = state.pos;
-  const style: React.CSSProperties = pos
-    ? { left: pos.x, top: pos.y, width: state.size.w, height: state.size.h }
-    : { right: 24, bottom: 88, width: state.size.w, height: state.size.h };
+  const style: React.CSSProperties = isMobile
+    ? { inset: 0, width: "100%", height: "100dvh", borderRadius: 0 }
+    : pos
+      ? { left: pos.x, top: pos.y, width: state.size.w, height: state.size.h }
+      : { right: 24, bottom: 88, width: state.size.w, height: state.size.h };
 
   return (
     <AnimatePresence>
@@ -247,11 +251,11 @@ export function QuickNotes({ open, onOpenChange, wsId, projects, onTasksAdded }:
         >
           {/* header — drag handle */}
           <div
-            className="flex items-center gap-2.5 px-3.5 h-11 shrink-0 cursor-grab active:cursor-grabbing select-none border-b border-border"
+            className={`flex items-center gap-2.5 px-3.5 h-11 shrink-0 select-none border-b border-border ${isMobile ? "" : "cursor-grab active:cursor-grabbing"}`}
             style={{ background: "color-mix(in oklab, var(--gb-yellow) 9%, var(--card))" }}
-            onPointerDown={startDrag}
-            onPointerMove={onDrag}
-            onPointerUp={endDrag}
+            onPointerDown={isMobile ? undefined : startDrag}
+            onPointerMove={isMobile ? undefined : onDrag}
+            onPointerUp={isMobile ? undefined : endDrag}
           >
             <NotebookPen className="size-4" style={{ color: "var(--gb-yellow-s, var(--warning))" }} />
             <span className="font-display text-[0.95rem] leading-none">Quick notes</span>
@@ -410,7 +414,7 @@ export function QuickNotes({ open, onOpenChange, wsId, projects, onTasksAdded }:
             onPointerDown={startResize}
             onPointerMove={onResize}
             onPointerUp={endResize}
-            className="absolute bottom-0 right-0 size-4 cursor-nwse-resize"
+            className="absolute bottom-0 right-0 size-4 cursor-nwse-resize hidden md:block"
             style={{
               background:
                 "linear-gradient(135deg, transparent 50%, var(--border-strong, rgba(0,0,0,0.25)) 50%)",

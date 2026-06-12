@@ -7,9 +7,8 @@
 import { Flag } from "lucide-react";
 import type { TodoItem } from "./MainPanel";
 import type { Milestone } from "../../api/client";
+import { useIsMobile } from "../ui/use-mobile";
 
-const DAY_W = 34;
-const LABEL_W = 220;
 const ROW_H = 36;
 
 const MS_DAY = 86400000;
@@ -30,6 +29,9 @@ type Props = {
 };
 
 export function Gantt({ items, milestones, accent }: Props) {
+  const isMobile = useIsMobile();
+  const DAY_W = isMobile ? 26 : 34;
+  const LABEL_W = isMobile ? 116 : 220;
   const today = day(new Date());
   const dates: number[] = [today];
   for (const i of items) if (i.deadline) dates.push(day(new Date(i.deadline)));

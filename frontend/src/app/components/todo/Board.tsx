@@ -36,6 +36,12 @@ export function Board({ items, childrenByParent, accent, onMove, onToggle }: Pro
     byCol[k].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   }
 
+  // Tap-to-move: append to the end of the destination column.
+  const setStatus = (id: string, status: BoardStatus) => {
+    const maxPos = byCol[status].reduce((m, c) => Math.max(m, c.position ?? 0), 0);
+    onMove(id, status, maxPos + 1);
+  };
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
       {COLUMNS.map((col) => (
@@ -47,19 +53,21 @@ export function Board({ items, childrenByParent, accent, onMove, onToggle }: Pro
           accent={accent}
           onMove={onMove}
           onToggle={onToggle}
+          onSetStatus={setStatus}
         />
       ))}
     </div>
   );
 }
 
-function Column({ column, cards, childrenByParent, accent, onMove, onToggle }: {
+function Column({ column, cards, childrenByParent, accent, onMove, onToggle, onSetStatus }: {
   column: { key: BoardStatus; title: string; tone: string };
   cards: TodoItem[];
   childrenByParent: Record<string, TodoItem[]>;
   accent: string;
   onMove: Props["onMove"];
   onToggle: Props["onToggle"];
+  onSetStatus: (id: string, status: BoardStatus) => void;
 }) {
   const [{ isOver, canDrop }, dropRef] = useDrop(
     () => ({
@@ -90,7 +98,8 @@ function Column({ column, cards, childrenByParent, accent, onMove, onToggle }: {
       </div>
       <div className="space-y-2">
         {cards.map((it) => (
-          <Card key={it.id} item={it} kids={childrenByParent[it.id] ?? []} accent={accent} onToggle={onToggle} />
+          <Card key={it.id} item={it} kids={childrenByParent[it.id] ?? []} accent={accent}
+            current={column.key} onToggle={onToggle} onSetStatus={onSetStatus} />
         ))}
         {cards.length === 0 && (
           <div className="rounded-lg border border-dashed border-border-strong/60 px-3 py-6 text-center text-xs text-muted-foreground">
@@ -102,11 +111,13 @@ function Column({ column, cards, childrenByParent, accent, onMove, onToggle }: {
   );
 }
 
-function Card({ item, kids, accent, onToggle }: {
+function Card({ item, kids, accent, current, onToggle, onSetStatus }: {
   item: TodoItem;
   kids: TodoItem[];
   accent: string;
+  current: BoardStatus;
   onToggle: (id: string) => void;
+  onSetStatus: (id: string, status: BoardStatus) => void;
 }) {
   const [{ isDragging }, dragRef] = useDrag(
     () => ({
@@ -123,7 +134,7 @@ function Card({ item, kids, accent, onToggle }: {
   return (
     <div
       ref={dragRef as any}
-      className={`rounded-lg border border-border bg-card px-3 py-2.5 shadow-soft-sm cursor-grab active:cursor-grabbing select-none ${
+      className={`rounded-lg border border-border bg-card px-3 py-2.5 shadow-soft-sm cursor-grab active:cursor-grabbing touch-none select-none ${
         isDragging ? "opacity-40" : ""
       }`}
     >
@@ -157,6 +168,28 @@ function Card({ item, kids, accent, onToggle }: {
           {item.priority && <PriorityChip priority={item.priority} />}
         </div>
       )}
+
+      {/* mobile: tap-to-move (dragging across stacked columns is awkward on a phone) */}
+      <div className="mt-2 ml-5 flex items-center gap-1 sm:hidden" role="group" aria-label="Move to column">
+        {COLUMNS.map((c) => {
+          const active = c.key === current;
+          return (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => !active && onSetStatus(item.id, c.key)}
+              aria-pressed={active}
+              aria-label={`Move to ${c.title}`}
+              className={`flex-1 rounded-md px-1.5 py-1 text-[0.6rem] font-medium uppercase tracking-wide transition-colors ${
+                active ? "text-foreground" : "text-muted-foreground/70 border border-transparent hover:bg-accent"
+              }`}
+              style={active ? { background: `color-mix(in oklab, ${c.tone} 16%, transparent)`, color: c.tone } : undefined}
+            >
+              {c.title}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
