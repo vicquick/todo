@@ -199,9 +199,22 @@ export function QuickNotes({ open, onOpenChange, wsId, projects, onTasksAdded }:
       }
       onTasksAdded(project.id);
       setSendOpen(false);
+
+      // Filed text leaves the note: whole-note send empties it, a selection
+      // send splices just that passage out, leaving the rest to sort later.
+      if (active) {
+        const body = active.body;
+        const remaining = usingWholeNote
+          ? ""
+          : (body.slice(0, selRange!.start) + body.slice(selRange!.end))
+              .replace(/\n{3,}/g, "\n\n");
+        updateActive(remaining);
+      }
+      setSelRange(null);
+
       toast.success(
         `${created} task${created === 1 ? "" : "s"} → “${project.name}”`,
-        { description: "Captured from quick notes." },
+        { description: "Filed from quick notes." },
       );
     } catch (e: any) {
       toast.error("Couldn't create tasks", { description: e?.message });
