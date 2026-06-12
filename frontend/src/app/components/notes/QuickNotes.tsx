@@ -150,11 +150,15 @@ export function QuickNotes({ open, onOpenChange, wsId, projects, onTasksAdded }:
     setSelRange(null);
   };
 
+  // Keep the LAST real selection instead of clearing on collapse — tapping the
+  // "To project…" button collapses the textarea selection before the click
+  // lands (always on touch, sometimes on desktop), which used to wipe it
+  // mid-tap. Stale offsets can't leak: edits clear selRange via onChange.
   const captureSelection = () => {
     const ta = taRef.current;
     if (!ta) return;
     const { selectionStart: start, selectionEnd: end } = ta;
-    setSelRange(end > start ? { start, end } : null);
+    if (end > start) setSelRange({ start, end });
   };
 
   const selectionText = useMemo(() => {
@@ -162,18 +166,27 @@ export function QuickNotes({ open, onOpenChange, wsId, projects, onTasksAdded }:
     return active.body.slice(selRange.start, selRange.end);
   }, [active, selRange]);
 
+  // No selection → fall back to the whole note. Selecting in a textarea is
+  // fiddly on a phone; the common case is "send everything I just captured".
+  const sendText = selectionText.trim() ? selectionText : (active?.body ?? "");
+  const usingWholeNote = !selectionText.trim();
+
   const sendToProject = async (project: TodoList) => {
-    if (!wsId || !selectionText.trim()) return;
+    if (!wsId || !sendText.trim()) return;
     setSending(true);
     try {
       const labels = perLine
-        ? selectionText.split("\n").map((l) => l.replace(/^[-*•\s]+/, "").trim()).filter(Boolean)
-        : [selectionText.trim()];
+        ? sendText
+            .split("\n")
+            // strip list markers: "-", "*", "•", "1." / "1)", "[ ]" / "[x]" checkboxes
+            .map((l) => l.replace(/^\s*(?:[-*•]|\d+[.)])?\s*(?:\[[ xX]?\]\s*)?/, "").trim())
+            .filter(Boolean)
+        : [sendText.trim()];
       let created = 0;
       for (const raw of labels) {
         const label = raw.slice(0, 250);
         const description =
-          !perLine && raw.length > 250 ? selectionText.trim() : undefined;
+          !perLine && raw.length > 250 ? sendText.trim() : undefined;
         await api.createItem(wsId, project.id, { label, description: description ?? null });
         created++;
       }
@@ -308,8 +321,14 @@ export function QuickNotes({ open, onOpenChange, wsId, projects, onTasksAdded }:
                       size="sm"
                       variant="secondary"
                       className="gap-1.5 h-8"
-                      disabled={!selectionText.trim() || !wsId}
-                      title={selectionText.trim() ? "Send selection to a project" : "Select text first"}
+                      disabled={!sendText.trim() || !wsId}
+                      title={
+                        !sendText.trim()
+                          ? "Write something first"
+                          : usingWholeNote
+                            ? "Send the whole note to a project"
+                            : "Send selection to a project"
+                      }
                     >
                       <ListPlus className="size-3.5" />
                       To project…
@@ -318,7 +337,7 @@ export function QuickNotes({ open, onOpenChange, wsId, projects, onTasksAdded }:
                   <PopoverContent side="top" align="start" className="w-64 p-2">
                     <div className="px-1.5 pb-2 flex items-center justify-between">
                       <span className="text-[0.65rem] tracking-[0.18em] uppercase text-muted-foreground">
-                        Send selection
+                        {usingWholeNote ? "Send whole note" : "Send selection"}
                       </span>
                       <button
                         className="font-mono text-[0.66rem] px-1.5 py-0.5 rounded border border-border hover:bg-accent"
