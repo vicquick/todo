@@ -362,9 +362,11 @@ export function QuickNotes({ open, onOpenChange, wsId, projects, onTasksAdded }:
 
               {/* toolbar */}
               <div className="flex items-center gap-1.5 px-2.5 h-11 shrink-0 border-t border-border bg-background/40">
-                {/* On a phone the Radix popover anchored to this tiny bottom
-                    button mispositions inside the full-screen sheet, so the
-                    picker becomes a bottom drawer there; popover on desktop. */}
+                {/* The notes panel is a motion.div with a `transform`, which
+                    breaks Radix's portalled popover positioning (it landed
+                    ~127px above the viewport → "nothing happens"). So: a bottom
+                    drawer on phones, and an inline drop-up rendered INSIDE the
+                    panel on desktop — no portal, no transform trap. */}
                 {isMobile ? (
                   <Drawer open={sendOpen} onOpenChange={(o) => { if (o) captureSelection(); setSendOpen(o); }}>
                     <DrawerTrigger asChild>{sendTrigger}</DrawerTrigger>
@@ -386,24 +388,45 @@ export function QuickNotes({ open, onOpenChange, wsId, projects, onTasksAdded }:
                     </DrawerContent>
                   </Drawer>
                 ) : (
-                  <Popover open={sendOpen} onOpenChange={(o) => { if (o) captureSelection(); setSendOpen(o); }}>
-                    <PopoverTrigger asChild>{sendTrigger}</PopoverTrigger>
-                    <PopoverContent side="top" align="start" className="w-64 p-2">
-                      <div className="px-1.5 pb-2 flex items-center justify-between">
-                        <span className="text-[0.65rem] tracking-[0.18em] uppercase text-muted-foreground">
-                          {usingWholeNote ? "Send whole note" : "Send selection"}
-                        </span>
-                        <button
-                          className="font-mono text-[0.66rem] px-1.5 py-0.5 rounded border border-border hover:bg-accent"
-                          onClick={() => setPerLine((p) => !p)}
-                          title="Toggle how the selection becomes tasks"
-                        >
-                          {perLine ? "task per line" : "single task"}
-                        </button>
-                      </div>
-                      <div className="max-h-52 overflow-y-auto space-y-0.5">{projectList}</div>
-                    </PopoverContent>
-                  </Popover>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      disabled={!sendText.trim() || !wsId}
+                      onClick={() => setSendOpen((o) => { const next = !o; if (next) captureSelection(); return next; })}
+                      title={
+                        !sendText.trim()
+                          ? "Write something first"
+                          : usingWholeNote
+                            ? "Send the whole note to a project"
+                            : "Send selection to a project"
+                      }
+                      className="inline-flex items-center gap-1.5 h-8 rounded-md bg-secondary px-2.5 text-sm font-medium hover:bg-secondary/80 disabled:opacity-50 disabled:pointer-events-none"
+                    >
+                      <ListPlus className="size-3.5" />
+                      To project…
+                    </button>
+                    {sendOpen && (
+                      <>
+                        {/* click-away catcher, scoped to the panel */}
+                        <div className="fixed inset-0 z-10" onClick={() => setSendOpen(false)} aria-hidden />
+                        <div className="absolute bottom-full left-0 mb-2 z-20 w-64 rounded-md border border-border bg-popover p-2 shadow-soft-lg">
+                          <div className="px-1.5 pb-2 flex items-center justify-between">
+                            <span className="text-[0.65rem] tracking-[0.18em] uppercase text-muted-foreground">
+                              {usingWholeNote ? "Send whole note" : "Send selection"}
+                            </span>
+                            <button
+                              className="font-mono text-[0.66rem] px-1.5 py-0.5 rounded border border-border hover:bg-accent"
+                              onClick={() => setPerLine((p) => !p)}
+                              title="Toggle how the selection becomes tasks"
+                            >
+                              {perLine ? "task per line" : "single task"}
+                            </button>
+                          </div>
+                          <div className="max-h-52 overflow-y-auto space-y-0.5">{projectList}</div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
 
                 <Button size="sm" variant="ghost" className="h-8 px-2 text-muted-foreground" disabled
