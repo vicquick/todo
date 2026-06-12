@@ -26,6 +26,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "../ui/popover";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "../ui/drawer";
 import * as api from "../../api/client";
 import type { TodoList } from "../todo/Sidebar";
 import { useIsMobile } from "../ui/use-mobile";
@@ -241,6 +248,46 @@ export function QuickNotes({ open, onOpenChange, wsId, projects, onTasksAdded }:
   };
   const endResize = () => (sizeFrom.current = null);
 
+  // Shared bits for the send-to-project picker (popover on desktop, drawer on phone).
+  const sendTrigger = (
+    <Button
+      size="sm"
+      variant="secondary"
+      className="gap-1.5 h-8"
+      disabled={!sendText.trim() || !wsId}
+      title={
+        !sendText.trim()
+          ? "Write something first"
+          : usingWholeNote
+            ? "Send the whole note to a project"
+            : "Send selection to a project"
+      }
+    >
+      <ListPlus className="size-3.5" />
+      To project…
+    </Button>
+  );
+
+  const projectList = (
+    <>
+      {projects.length === 0 && (
+        <p className="px-2 py-3 text-sm text-muted-foreground">No projects yet.</p>
+      )}
+      {projects.map((p) => (
+        <button
+          key={p.id}
+          disabled={sending}
+          onClick={() => sendToProject(p)}
+          className="w-full flex items-center gap-2 px-2 py-2.5 rounded-md text-left text-sm hover:bg-accent disabled:opacity-50"
+        >
+          <span className="size-2.5 rounded-full shrink-0" style={{ background: `var(--gb-${p.accent})` }} />
+          <span className="truncate flex-1">{p.name}</span>
+          {sending && <Loader2 className="size-3 animate-spin" />}
+        </button>
+      ))}
+    </>
+  );
+
   const pos = state.pos;
   const style: React.CSSProperties = isMobile
     ? { inset: 0, width: "100%", height: "100dvh", borderRadius: 0 }
@@ -315,57 +362,49 @@ export function QuickNotes({ open, onOpenChange, wsId, projects, onTasksAdded }:
 
               {/* toolbar */}
               <div className="flex items-center gap-1.5 px-2.5 h-11 shrink-0 border-t border-border bg-background/40">
-                <Popover open={sendOpen} onOpenChange={(o) => { if (o) captureSelection(); setSendOpen(o); }}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="gap-1.5 h-8"
-                      disabled={!sendText.trim() || !wsId}
-                      title={
-                        !sendText.trim()
-                          ? "Write something first"
-                          : usingWholeNote
-                            ? "Send the whole note to a project"
-                            : "Send selection to a project"
-                      }
-                    >
-                      <ListPlus className="size-3.5" />
-                      To project…
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent side="top" align="start" className="w-64 p-2">
-                    <div className="px-1.5 pb-2 flex items-center justify-between">
-                      <span className="text-[0.65rem] tracking-[0.18em] uppercase text-muted-foreground">
-                        {usingWholeNote ? "Send whole note" : "Send selection"}
-                      </span>
-                      <button
-                        className="font-mono text-[0.66rem] px-1.5 py-0.5 rounded border border-border hover:bg-accent"
-                        onClick={() => setPerLine((p) => !p)}
-                        title="Toggle how the selection becomes tasks"
-                      >
-                        {perLine ? "task per line" : "single task"}
-                      </button>
-                    </div>
-                    <div className="max-h-52 overflow-y-auto space-y-0.5">
-                      {projects.length === 0 && (
-                        <p className="px-2 py-3 text-sm text-muted-foreground">No projects yet.</p>
-                      )}
-                      {projects.map((p) => (
+                {/* On a phone the Radix popover anchored to this tiny bottom
+                    button mispositions inside the full-screen sheet, so the
+                    picker becomes a bottom drawer there; popover on desktop. */}
+                {isMobile ? (
+                  <Drawer open={sendOpen} onOpenChange={(o) => { if (o) captureSelection(); setSendOpen(o); }}>
+                    <DrawerTrigger asChild>{sendTrigger}</DrawerTrigger>
+                    <DrawerContent className="z-[60]">
+                      <DrawerHeader className="pb-1">
+                        <DrawerTitle className="flex items-center justify-between text-sm">
+                          <span>{usingWholeNote ? "Send whole note" : "Send selection"}</span>
+                          <button
+                            className="font-mono text-[0.7rem] px-2 py-1 rounded border border-border hover:bg-accent"
+                            onClick={() => setPerLine((p) => !p)}
+                          >
+                            {perLine ? "task per line" : "single task"}
+                          </button>
+                        </DrawerTitle>
+                      </DrawerHeader>
+                      <div className="px-3 pb-8 max-h-[55vh] overflow-y-auto space-y-1">
+                        {projectList}
+                      </div>
+                    </DrawerContent>
+                  </Drawer>
+                ) : (
+                  <Popover open={sendOpen} onOpenChange={(o) => { if (o) captureSelection(); setSendOpen(o); }}>
+                    <PopoverTrigger asChild>{sendTrigger}</PopoverTrigger>
+                    <PopoverContent side="top" align="start" className="w-64 p-2">
+                      <div className="px-1.5 pb-2 flex items-center justify-between">
+                        <span className="text-[0.65rem] tracking-[0.18em] uppercase text-muted-foreground">
+                          {usingWholeNote ? "Send whole note" : "Send selection"}
+                        </span>
                         <button
-                          key={p.id}
-                          disabled={sending}
-                          onClick={() => sendToProject(p)}
-                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-sm hover:bg-accent disabled:opacity-50"
+                          className="font-mono text-[0.66rem] px-1.5 py-0.5 rounded border border-border hover:bg-accent"
+                          onClick={() => setPerLine((p) => !p)}
+                          title="Toggle how the selection becomes tasks"
                         >
-                          <span className="size-2.5 rounded-full shrink-0" style={{ background: `var(--gb-${p.accent})` }} />
-                          <span className="truncate flex-1">{p.name}</span>
-                          {sending && <Loader2 className="size-3 animate-spin" />}
+                          {perLine ? "task per line" : "single task"}
                         </button>
-                      ))}
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                      </div>
+                      <div className="max-h-52 overflow-y-auto space-y-0.5">{projectList}</div>
+                    </PopoverContent>
+                  </Popover>
+                )}
 
                 <Button size="sm" variant="ghost" className="h-8 px-2 text-muted-foreground" disabled
                   title="Files & scribbles — coming soon">
